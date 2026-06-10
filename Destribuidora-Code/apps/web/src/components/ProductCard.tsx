@@ -1,0 +1,115 @@
+'use client';
+
+import { useState } from 'react';
+import { useCart } from '@/context/CartContext';
+import { formatCurrency } from '@/lib/cart';
+
+interface Product {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  price: number;
+  stock: number;
+  category: string | null;
+}
+
+export default function ProductCard({ product }: { product: Product }) {
+  const { addItem, items } = useCart();
+  const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
+
+  const inCart = items.find((i) => i.productId === product.id);
+  const remainingStock = product.stock - (inCart?.quantity ?? 0);
+
+  function handleAdd() {
+    if (quantity < 1 || quantity > remainingStock) return;
+    addItem({
+      productId: product.id,
+      name: product.name,
+      code: product.code,
+      price: product.price,
+      quantity,
+      maxStock: product.stock,
+    });
+    setQuantity(1);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  }
+
+  return (
+    <div className="card p-4 flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-semibold text-gray-900 text-sm leading-tight">{product.name}</h3>
+            {product.code && (
+              <span className="text-xs text-gray-400 font-mono">{product.code}</span>
+            )}
+          </div>
+          <span
+            className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
+              remainingStock === 0
+                ? 'bg-red-100 text-red-700'
+                : remainingStock <= 5
+                ? 'bg-yellow-100 text-yellow-700'
+                : 'bg-green-100 text-green-700'
+            }`}
+          >
+            {remainingStock === 0 ? 'Sin stock' : `${remainingStock} disp.`}
+          </span>
+        </div>
+        {product.description && (
+          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
+        )}
+      </div>
+
+      {/* Price */}
+      <div className="text-xl font-bold text-blue-700">{formatCurrency(product.price)}</div>
+
+      {/* Add to cart */}
+      {remainingStock > 0 ? (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setQuantity(Math.max(1, quantity - 1))}
+              className="w-8 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min={1}
+              max={remainingStock}
+              value={quantity}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val)) setQuantity(Math.min(Math.max(1, val), remainingStock));
+              }}
+              className="w-12 text-center text-sm font-medium border-0 focus:outline-none"
+            />
+            <button
+              onClick={() => setQuantity(Math.min(remainingStock, quantity + 1))}
+              className="w-8 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              +
+            </button>
+          </div>
+          <button
+            onClick={handleAdd}
+            className={`flex-1 py-2 text-sm font-medium rounded-xl transition-all ${
+              added
+                ? 'bg-green-500 text-white'
+                : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+            }`}
+          >
+            {added ? '✓ Agregado' : 'Agregar'}
+          </button>
+        </div>
+      ) : (
+        <div className="text-center text-xs text-gray-400 py-2">Producto agotado</div>
+      )}
+    </div>
+  );
+}
