@@ -3,16 +3,10 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSignupPlans, getSignupCategories, signupDistributor, type SignupPlan } from '@/lib/api';
-
-function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency, minimumFractionDigits: 0 }).format(amount);
-}
+import { getSignupPlans, getSignupCategories, signupDistributor } from '@/lib/api';
 
 export default function SignupPage() {
   const router = useRouter();
-  const [plans, setPlans] = useState<SignupPlan[]>([]);
-  const [loadingPlans, setLoadingPlans] = useState(true);
   const [categories, setCategories] = useState<string[]>([]);
 
   const [form, setForm] = useState({
@@ -30,11 +24,9 @@ export default function SignupPage() {
   useEffect(() => {
     getSignupPlans()
       .then((data) => {
-        setPlans(data);
         if (data.length > 0) setForm((f) => ({ ...f, planId: data[0].id }));
       })
-      .catch(() => setError('No se pudieron cargar los planes disponibles.'))
-      .finally(() => setLoadingPlans(false));
+      .catch(() => setError('No se pudieron cargar los planes disponibles.'));
 
     getSignupCategories()
       .then(setCategories)
@@ -189,42 +181,6 @@ export default function SignupPage() {
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
-            </div>
-
-            <div>
-              <label className="label">Plan</label>
-              {loadingPlans ? (
-                <p className="text-sm text-gray-500">Cargando planes...</p>
-              ) : (
-                <div className="space-y-2">
-                  {plans.map((plan) => (
-                    <label
-                      key={plan.id}
-                      className={`flex items-center justify-between border rounded-xl p-3 cursor-pointer transition-colors ${
-                        form.planId === plan.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="radio"
-                          name="plan"
-                          checked={form.planId === plan.id}
-                          onChange={() => setForm({ ...form, planId: plan.id })}
-                        />
-                        <div>
-                          <div className="font-medium text-gray-900 text-sm">{plan.name}</div>
-                          <div className="text-xs text-gray-500">
-                            {plan.maxProducts ?? '∞'} productos · {plan.maxClients ?? '∞'} clientes
-                          </div>
-                        </div>
-                      </div>
-                      <div className="font-semibold text-gray-900 text-sm">
-                        {formatCurrency(plan.price, plan.currency)}/mes
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              )}
             </div>
 
             <button type="submit" disabled={submitting} className="btn-primary w-full">
