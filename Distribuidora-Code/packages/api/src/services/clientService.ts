@@ -1,0 +1,147 @@
+import { prisma } from '../lib/prisma';
+import { AppError } from '../middleware/errorHandler';
+import { assertWithinLimit } from './subscriptionService';
+import { generateAccessCode } from '../lib/accessCode';
+import { sendMail } from '../lib/mailer';
+import type { PaginationParams } from '../lib/pagination';
+import type { CreateClientInput, UpdateClientInput } from '../validations/schemas';
+
+export async function listClients(
+  distributorId: string,
+  search?: string,
+  pagination: PaginationParams = {}
+): Promise<{ data: Awaited<ReturnType<typeof prisma.client.findMany>>; total: number }> {
+  const where = {
+    distributorId,
+    active: true,
+    ...(search && {
+      OR: [
+        { rut: { contains: search, mode: 'insensitive' as const } },
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+      ],
+    }),
+  };
+
+  const [data, total] = await Promise.all([
+    prisma.client.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { orders: true } } },
+      ...pagination,
+    }),
+    prisma.client.count({ where }),
+  ]);
+
+  return { data, total };
+}
+
+export async function getClientById(distributorId: string, clientId: string) {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, distributorId },
+    include: {
+      orders: {
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: {
+          items: { include: { product: { select: { name: true } } } },
+        },
+      },
+    },
+  });
+  if (!client) throw new AppError(404, 'Client not found');
+  return client;
+}
+
+export async function createClient(distributorId: string, data: CreateClientInput) {
+  const existing = await prisma.client.findUnique({
+    where: { distributorId_rut: { distributorId, rut: data.rut } },
+  });
+
+  let client;
+  if (existing) {
+    if (existing.active) {
+      throw new AppError(409, `A client with RUT ${data.rut} already exists`);
+    }
+    await assertWithinLimit(distributorId, 'clients');
+    client = await prisma.client.update({
+      where: { id: existing.id },
+      data: { ...data, active: true },
+    });
+  } else {
+    await assertWithinLimit(distributorId, 'clients');
+    client = await prisma.client.create({ data: { distributorId, ...data } });
+  }
+
+  if (client.email) {
+    client = await generateAndSendAccessCode(distributorId, client.id);
+  }
+
+  return client;
+}
+
+export async function generateAndSendAccessCode(distributorId: string, clientId: string) {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, distributorId },
+    include: { distributor: { select: { name: true } } },
+  });
+  if (!client) throw new AppError(404, 'Client not found');
+  if (!client.email) throw new AppError(400, 'El cliente no tiene email cargado');
+
+  const accessCode = generateAccessCode();
+  const updated = await prisma.client.update({
+    where: { id: clientId },
+    data: { accessCode, accessCodeSentAt: new Date() },
+  });
+
+  await sendMail({
+    to: client.email,
+    subject: `Tu código de acceso a ${client.distributor.name}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
+        <h2>Bienvenido a ${client.distributor.name}</h2>
+        <p>Ya podés acceder al catálogo con tu RUT (<strong>${client.rut}</strong>) y este código de acceso:</p>
+        <p style="font-size:24px;font-weight:bold;letter-spacing:3px;background:#f3f4f6;padding:14px 20px;border-radius:8px;text-align:center;">${accessCode}</p>
+        <p style="color:#666;font-size:13px;">Guarda este código, lo vas a necesitar cada vez que quieras ingresar a hacer un pedido.</p>
+      </div>`,
+  });
+
+  return updated;
+}
+
+export async function updateClient(
+  distributorId: string,
+  clientId: string,
+  data: UpdateClientInput
+) {
+  const client = await prisma.client.findFirst({ where: { id: clientId, distributorId } });
+  if (!client) throw new AppError(404, 'Client not found');
+  return prisma.client.update({ where: { id: clientId }, data });
+}
+
+export async function deactivateClient(distributorId: string, clientId: string) {
+  const client = await prisma.client.findFirst({ where: { id: clientId, distributorId } });
+  if (!client) throw new AppError(404, 'Client not found');
+  return prisma.client.update({ where: { id: clientId }, data: { active: false } });
+}
+
+/**
+ * Confirms that `code` is the current access code for the client identified by
+ * `rut` within this distributor. Used to gate every public endpoint that
+ * exposes client data (catalog access, order history, contact lookup).
+ */
+export async function verifyClientAccessCode(distributorId: string, rut: string, code: string) {
+  const client = await prisma.client.findUnique({
+    where: { distributorId_rut: { distributorId, rut } },
+  });
+
+  if (!client || !client.active) {
+    throw new AppError(401, 'RUT no registrado. Contacta a tu distribuidora.');
+  }
+
+  if (!client.accessCode || client.accessCode.trim().toUpperCase() !== code.trim().toUpperCase()) {
+    throw new AppError(401, 'Invalid access code');
+  }
+
+  return client;
+}
