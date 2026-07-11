@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency, validateRUT, formatRUT } from '@/lib/cart';
-import { createOrder, getClientByRut } from '@/lib/api';
+import { createOrder } from '@/lib/api';
 import { loadAccess } from '@/lib/access';
 
 export default function CartPage() {
@@ -17,10 +17,6 @@ export default function CartPage() {
   const [rut, setRut] = useState('');
   const [rutLocked, setRutLocked] = useState(false);
   const [rutError, setRutError] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [clientNameLocked, setClientNameLocked] = useState(false);
-  const [clientEmail, setClientEmail] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -31,20 +27,6 @@ export default function CartPage() {
 
     setRut(access.rut);
     setRutLocked(true);
-
-    getClientByRut(slug, access.rut, access.code)
-      .then((client) => {
-        if (!client) return;
-        if (client.name) {
-          setClientName(client.name);
-          setClientNameLocked(true);
-        }
-        if (client.email) setClientEmail(client.email);
-        if (client.phone) setClientPhone(client.phone);
-      })
-      .catch(() => {
-        // Cliente nuevo o error de red — se deja el formulario editable.
-      });
   }, [slug]);
 
   function handleRutChange(value: string) {
@@ -81,9 +63,6 @@ export default function CartPage() {
     try {
       const order = await createOrder(slug, {
         rut,
-        clientName: clientName || undefined,
-        clientEmail: clientEmail || undefined,
-        clientPhone: clientPhone || undefined,
         notes: notes || undefined,
         items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       });
@@ -228,45 +207,6 @@ export default function CartPage() {
               ) : (
                 rutError && <p className="text-xs text-red-500 mt-1">{rutError}</p>
               )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nombre de empresa
-              </label>
-              <input
-                type="text"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Mi Empresa S.A."
-                disabled={clientNameLocked}
-                className={`input ${clientNameLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-              />
-              {clientNameLocked && (
-                <p className="text-xs text-gray-400 mt-1">Nombre registrado para este RUT</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={clientEmail}
-                onChange={(e) => setClientEmail(e.target.value)}
-                placeholder="contacto@empresa.cl"
-                className="input"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-              <input
-                type="tel"
-                value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
-                placeholder="+56912345678"
-                className="input"
-              />
             </div>
 
             <div>

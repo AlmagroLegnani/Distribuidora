@@ -75,7 +75,7 @@ export default function PortalHeader({
           <button
             onClick={() => {
               clearAccess(slug);
-              window.location.href = `/${slug}`;
+              window.location.href = '/';
             }}
             title="Salir / cambiar cliente"
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors hidden sm:block"
