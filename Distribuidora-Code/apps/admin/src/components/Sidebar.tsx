@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { logout } from '@/lib/auth';
+import { getUnreadNotifications } from '@/lib/api';
 
 const navItems = [
   {
@@ -42,6 +44,15 @@ const navItems = [
     ),
   },
   {
+    href: '/notifications',
+    label: 'Notificaciones',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+    ),
+  },
+  {
     href: '/settings',
     label: 'Configuración',
     icon: (
@@ -55,6 +66,30 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    function refresh() {
+      getUnreadNotifications()
+        .then((alerts) => {
+          if (!cancelled) setUnreadCount(alerts.length);
+        })
+        .catch(() => null);
+    }
+
+    refresh();
+    // Refresco periódico simple (no hay websockets/polling infra en el proyecto todavía),
+    // más un evento inmediato para cuando el modal de stock bajo marca alertas como leídas.
+    const interval = setInterval(refresh, 60_000);
+    window.addEventListener('stockalerts:read', refresh);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('stockalerts:read', refresh);
+    };
+  }, [pathname]);
 
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-gray-900 text-white flex flex-col z-30">
@@ -86,7 +121,12 @@ export default function Sidebar() {
               }`}
             >
               {item.icon}
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.href === '/notifications' && unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs font-semibold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Link>
           );
         })}

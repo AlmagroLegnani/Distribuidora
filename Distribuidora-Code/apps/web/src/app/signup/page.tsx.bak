@@ -3,11 +3,10 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSignupPlans, getSignupCategories, signupDistributor } from '@/lib/api';
+import { getSignupPlans, signupDistributor } from '@/lib/api';
 
 export default function SignupPage() {
   const router = useRouter();
-  const [categories, setCategories] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     name: '',
@@ -16,7 +15,6 @@ export default function SignupPage() {
     slug: '',
     phone: '',
     planId: '',
-    categories: [] as string[],
   });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -27,20 +25,7 @@ export default function SignupPage() {
         if (data.length > 0) setForm((f) => ({ ...f, planId: data[0].id }));
       })
       .catch(() => setError('No se pudieron cargar los planes disponibles.'));
-
-    getSignupCategories()
-      .then(setCategories)
-      .catch(() => setError('No se pudieron cargar los rubros disponibles.'));
   }, []);
-
-  function toggleCategory(category: string) {
-    setForm((f) => ({
-      ...f,
-      categories: f.categories.includes(category)
-        ? f.categories.filter((c) => c !== category)
-        : [...f.categories, category],
-    }));
-  }
 
   function slugify(value: string): string {
     return value
@@ -63,8 +48,8 @@ export default function SignupPage() {
       setError('La contraseña debe tener al menos 8 caracteres.');
       return;
     }
-    if (form.categories.length === 0) {
-      setError('Selecciona al menos un rubro.');
+    if (!form.phone.trim()) {
+      setError('El teléfono es obligatorio.');
       return;
     }
 
@@ -75,16 +60,11 @@ export default function SignupPage() {
         email: form.email,
         password: form.password,
         slug: form.slug,
-        phone: form.phone || undefined,
+        phone: form.phone,
         planId: form.planId,
-        categories: form.categories,
       });
 
-      if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
-      } else {
-        router.push(`/signup/success?slug=${result.distributor.slug}`);
-      }
+      router.push(`/signup/success?slug=${result.distributor.slug}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrar tu distribuidora');
     } finally {
@@ -98,7 +78,7 @@ export default function SignupPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Registra tu distribuidora</h1>
           <p className="text-gray-500 mt-2">
-            Empieza gratis con una prueba de 7 días. Sin tarjeta obligatoria para comenzar.
+            Empieza gratis con una prueba de 3 meses. Sin tarjeta ni pago para comenzar.
           </p>
         </div>
 
@@ -143,33 +123,14 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="label">Teléfono (opcional)</label>
+              <label className="label">Teléfono</label>
               <input
                 className="input"
+                required
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="+598 99 123 456"
               />
-            </div>
-
-            <div>
-              <label className="label">Rubros (podés elegir varios)</label>
-              <div className="grid grid-cols-2 gap-2">
-                {categories.map((category) => (
-                  <label
-                    key={category}
-                    className={`flex items-center gap-2 border rounded-xl p-2.5 text-sm cursor-pointer transition-colors ${
-                      form.categories.includes(category) ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.categories.includes(category)}
-                      onChange={() => toggleCategory(category)}
-                    />
-                    {category}
-                  </label>
-                ))}
-              </div>
             </div>
 
             <div>

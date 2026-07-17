@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { createTrialSubscription, TRIAL_DAYS } from './subscriptionService';
-import { createCheckoutPreference } from './mercadopagoService';
 import type { SignupInput } from '../validations/schemas';
 
 const BCRYPT_ROUNDS = 10;
@@ -33,16 +32,11 @@ export async function signupDistributor(input: SignupInput) {
     },
   });
 
+  // El alta es 100% self-service y gratuita: no se genera checkout de pago acá.
+  // Los 3 meses de prueba se acuerdan de palabra con el dueño de la distribuidora,
+  // y el cobro posterior se maneja por contrato + control manual desde el panel
+  // de plataforma (marcar pagado / suspender), no vía MercadoPago automático.
   const subscription = await createTrialSubscription(distributor.id, plan.id);
-
-  let checkoutUrl: string | null = null;
-  try {
-    checkoutUrl = await createCheckoutPreference(subscription.id);
-  } catch (err) {
-    // Don't fail the whole signup just because MercadoPago isn't reachable —
-    // the distributor keeps trial access and can pay later from Settings.
-    console.error(`[${new Date().toISOString()}] Failed to create MercadoPago preference:`, err);
-  }
 
   return {
     distributor: {
@@ -53,6 +47,5 @@ export async function signupDistributor(input: SignupInput) {
     },
     trialDays: TRIAL_DAYS,
     trialEndsAt: subscription.trialEndsAt,
-    checkoutUrl,
   };
 }

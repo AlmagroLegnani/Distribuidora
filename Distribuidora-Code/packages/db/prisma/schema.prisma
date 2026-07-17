@@ -27,6 +27,8 @@ model Distributor {
   settings     DistributorSettings?
   subscription Subscription?
   resetTokens  PasswordResetToken[]
+  stockAlerts  StockAlert[]
+  clientPrices ClientPrice[]
 }
 
 // Administrador de la plataforma (dueño del SaaS, no un distribuidor)
@@ -44,7 +46,7 @@ model Plan {
   name           String
   slug           String   @unique
   price          Float    // precio mensual
-  currency       String   @default("CLP")
+  currency       String   @default("UYU")
   maxProducts    Int?     // null = ilimitado
   maxClients     Int?
   maxOrdersMonth Int?
@@ -87,7 +89,7 @@ model Payment {
   subscription   Subscription @relation(fields: [subscriptionId], references: [id])
   mpPaymentId    String?      @unique
   amount         Float
-  currency       String       @default("CLP")
+  currency       String       @default("UYU")
   status         String       // approved | pending | rejected | manual
   method         String       @default("mercadopago") // mercadopago | manual
   paidAt         DateTime     @default(now())
@@ -118,23 +120,53 @@ model DistributorSettings {
 
 // Producto
 model Product {
+  id              String      @id @default(cuid())
+  distributorId   String
+  distributor     Distributor @relation(fields: [distributorId], references: [id])
+  name            String
+  code            String?
+  brand           String?
+  description     String?
+  price           Float
+  stock           Int
+  category        String?
+  imageUrl        String?
+  active          Boolean     @default(true)
+  // true mientras el stock sigue por debajo del umbral de aviso (ver stockAlertService.LOW_STOCK_THRESHOLD)
+  // y ya se generó una alerta; se resetea a false cuando el stock vuelve a superar el umbral,
+  // para poder avisar de nuevo si vuelve a caer más adelante.
+  lowStockAlerted Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  orderItems   OrderItem[]
+  stockAlerts  StockAlert[]
+  clientPrices ClientPrice[]
+
+  @@unique([distributorId, code])
+}
+
+// Notificación mostrada al distribuidor en su panel (sección "Notificaciones" +
+// modal al ingresar). Nació como aviso de stock bajo (ver stockAlertService.ts)
+// y se generalizó para poder avisar también vencimientos de pago (ver
+// platformService.notifyPaymentDue) — de ahí que los campos de producto sean
+// opcionales y sólo se completen cuando type = LOW_STOCK.
+model StockAlert {
   id            String      @id @default(cuid())
   distributorId String
   distributor   Distributor @relation(fields: [distributorId], references: [id])
-  name          String
-  code          String?
-  description   String?
-  price         Float
-  stock         Int
-  category      String?
-  imageUrl      String?
-  active        Boolean     @default(true)
+  type          String      @default("LOW_STOCK") // LOW_STOCK | PAYMENT_DUE
+  message       String? // texto ya armado para tipos que no son de stock (ej: aviso de vencimiento)
+  productId     String?
+  product       Product?    @relation(fields: [productId], references: [id])
+  productName   String? // copia del nombre al momento de la alerta, por si el producto cambia de nombre o se borra
+  stockAtAlert  Int?
+  threshold     Int?
+  read          Boolean     @default(false) // se marca leída al cerrar el modal o abrir la sección de notificaciones
+  emailSentAt   DateTime?
   createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
 
-  orderItems OrderItem[]
-
-  @@unique([distributorId, code])
+  @@index([distributorId, read])
 }
 
 // Cliente (empresa compradora)
@@ -142,7 +174,8 @@ model Client {
   id            String      @id @default(cuid())
   distributorId String
   distributor   Distributor @relation(fields: [distributorId], references: [id])
-  rut              String // RUT de la empresa
+  rut              String? // RUT de la empresa, si tiene
+  cedula           String? // Cédula de identidad, para clientes (almacenes chicos, etc.) sin RUT
   name             String?
   email            String?
   phone            String?
@@ -151,9 +184,48 @@ model Client {
   active           Boolean     @default(true)
   createdAt        DateTime    @default(now())
 
-  orders Order[]
+  orders       Order[]
+  clientPrices ClientPrice[]
 
+  // Al menos uno de rut/cedula debe estar presente (ver migración: CHECK constraint).
+  // Nulos no chocan entre sí en Postgres, por lo que ambos unique constraints conviven.
   @@unique([distributorId, rut])
+  @@unique([distributorId, cedula])
+}
+
+// Precio especial que un distribuidor le da a un cliente puntual para un
+// producto puntual (ej: un cliente que compra mucho de un producto recibe un
+// descuento). Si no hay fila acá, el cliente paga el precio de lista normal
+// (Product.price). Se gestiona desde el botón "Precio especial" en Productos,
+// o desde la ficha del cliente.
+model ClientPrice {
+  id            String      @id @default(cuid())
+  distributorId String
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id])
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  price         Float
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([clientId, productId])
+  @@index([distributorId, productId])
+}
+
+// Registro de cada mail enviado (Message-ID + fecha), usado por el job de
+// limpieza (ver emailCleanupService.ts) para borrar la copia de "Enviados"
+// de la cuenta de Gmail una vez pasada una hora — así StockApp no conserva
+// un historial de la correspondencia entre distribuidoras y clientes.
+model SentEmail {
+  id        String    @id @default(cuid())
+  messageId String    @unique
+  sentAt    DateTime  @default(now())
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([deletedAt, sentAt])
 }
 
 // Pedido

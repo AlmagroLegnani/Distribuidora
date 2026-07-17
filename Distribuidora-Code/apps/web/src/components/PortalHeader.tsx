@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/cart';
-import { clearAccess } from '@/lib/access';
+import { loadAccess } from '@/lib/access';
 
 interface Distributor {
   id: string;
@@ -21,6 +22,15 @@ export default function PortalHeader({
   slug: string;
 }) {
   const { itemCount, total } = useCart();
+  const [clientLabel, setClientLabel] = useState<string | null>(null);
+
+  // El nombre del cliente se guardó localmente al verificar el código de
+  // acceso (ver AccessGate) — lo leemos de ahí en vez de volver a pedirlo al
+  // servidor, para no gastar cupo del rate-limiter en algo solo estético.
+  useEffect(() => {
+    const access = loadAccess(slug);
+    setClientLabel(access?.clientName ?? null);
+  }, [slug]);
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
@@ -42,6 +52,12 @@ export default function PortalHeader({
         </Link>
 
         <div className="flex items-center gap-2">
+          {clientLabel && (
+            <span className="text-xs text-gray-500 hidden md:block max-w-[160px] truncate">
+              {clientLabel}
+            </span>
+          )}
+
           <Link
             href={`/${slug}/orders`}
             className="btn-secondary hidden sm:inline-flex"
@@ -72,18 +88,49 @@ export default function PortalHeader({
             )}
           </Link>
 
-          <button
-            onClick={() => {
-              clearAccess(slug);
-              window.location.href = '/';
-            }}
-            title="Salir / cambiar cliente"
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors hidden sm:block"
+          <Link
+            href="/distribuidoras"
+            title="Ver otras distribuidoras (no cierra tu acceso acá)"
+            className="btn-secondary hidden sm:inline-flex"
           >
-            Salir
-          </button>
+            Cambiar de distribuidora
+          </Link>
         </div>
       </div>
+
+      {/* En mobile "Mis Pedidos" y "Cambiar de distribuidora" no entran en la
+          fila de arriba — van en una barra fija abajo de la pantalla, que
+          queda siempre visible aunque se scrollee (como en las apps). */}
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 shadow-[0_-1px_4px_rgba(0,0,0,0.05)] flex items-stretch">
+        <Link
+          href={`/${slug}/orders`}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-gray-600 active:bg-gray-50"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 17v-2a4 4 0 014-4h4m0 0l-3-3m3 3l-3 3M5 7h14M5 12h4m-4 5h4"
+            />
+          </svg>
+          <span className="text-[11px] font-medium">Mis Pedidos</span>
+        </Link>
+        <Link
+          href="/distribuidoras"
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-gray-600 active:bg-gray-50 border-l border-gray-100"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"
+            />
+          </svg>
+          <span className="text-[11px] font-medium">Cambiar distribuidora</span>
+        </Link>
+      </nav>
     </header>
   );
 }

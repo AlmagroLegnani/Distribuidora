@@ -20,4 +20,7 @@ router.get('/:id', orderController.getById);
 // PATCH /api/orders/:id/status
 router.patch('/:id/status', validate(orderStatusSchema), orderController.updateStatus);
 
+// POST /api/orders/:id/receipt — generates a printable PDF receipt and emails it to the client
+router.post('/:id/receipt', orderController.getReceipt);
+
 export default router;

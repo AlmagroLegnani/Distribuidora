@@ -8,6 +8,7 @@ import {
   createPlanSchema,
   updatePlanSchema,
   markPaidSchema,
+  createDistributorSchema,
 } from '../validations/schemas';
 
 const router = Router();
@@ -17,6 +18,14 @@ router.post('/auth/login', authLimiter, validate(loginSchema), platformControlle
 
 // GET /api/platform/distributors
 router.get('/distributors', platformAuthMiddleware, platformController.listDistributors);
+
+// POST /api/platform/distributors — alta manual, genera y envía el código de acceso
+router.post(
+  '/distributors',
+  platformAuthMiddleware,
+  validate(createDistributorSchema),
+  platformController.createDistributor
+);
 
 // GET /api/platform/distributors/:id
 router.get('/distributors/:id', platformAuthMiddleware, platformController.getDistributor);
@@ -41,6 +50,13 @@ router.post(
   platformAuthMiddleware,
   validate(markPaidSchema),
   platformController.markDistributorPaid
+);
+
+// POST /api/platform/distributors/:id/notify-payment-due — aviso manual de vencimiento
+router.post(
+  '/distributors/:id/notify-payment-due',
+  platformAuthMiddleware,
+  platformController.notifyPaymentDue
 );
 
 // GET /api/platform/plans

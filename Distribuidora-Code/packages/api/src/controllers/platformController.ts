@@ -24,6 +24,19 @@ export async function listDistributors(
   }
 }
 
+export async function createDistributor(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await platformService.createDistributor(req.body);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getDistributor(
   req: PlatformAuthRequest,
   res: Response,
@@ -58,6 +71,19 @@ export async function activateDistributor(
   try {
     const distributor = await platformService.activate(req.params.id);
     res.json(distributor);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function notifyPaymentDue(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await platformService.notifyPaymentDue(req.params.id);
+    res.json(result);
   } catch (err) {
     next(err);
   }

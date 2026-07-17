@@ -1,13 +1,14 @@
 import { OrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
-import { assertWithinLimit } from './subscriptionService';
+import { classifyDocument } from '../lib/document';
+import { checkLowStock } from './stockAlertService';
 import type { PaginationParams } from '../lib/pagination';
 import type { CreatePublicOrderInput } from '../validations/schemas';
 
 interface OrderFilters {
   status?: OrderStatus;
-  rut?: string;
+  documento?: string;
   dateFrom?: string;
   dateTo?: string;
 }
@@ -17,13 +18,18 @@ export async function listOrders(
   filters: OrderFilters = {},
   pagination: PaginationParams = {}
 ): Promise<{ data: Awaited<ReturnType<typeof prisma.order.findMany>>; total: number }> {
-  const { status, rut, dateFrom, dateTo } = filters;
+  const { status, documento, dateFrom, dateTo } = filters;
 
   const where = {
     distributorId,
     ...(status && { status }),
-    ...(rut && {
-      client: { rut: { contains: rut, mode: 'insensitive' as const } },
+    ...(documento && {
+      client: {
+        OR: [
+          { rut: { contains: documento, mode: 'insensitive' as const } },
+          { cedula: { contains: documento, mode: 'insensitive' as const } },
+        ],
+      },
     }),
     ...(dateFrom || dateTo
       ? {
@@ -39,7 +45,7 @@ export async function listOrders(
     prisma.order.findMany({
       where,
       include: {
-        client: { select: { rut: true, name: true, email: true } },
+        client: { select: { rut: true, cedula: true, name: true, email: true } },
         items: {
           include: { product: { select: { name: true, code: true } } },
         },
@@ -60,6 +66,22 @@ export async function getOrderById(distributorId: string, orderId: string) {
       client: true,
       items: {
         include: { product: { select: { name: true, code: true, imageUrl: true } } },
+      },
+    },
+  });
+  if (!order) throw new AppError(404, 'Order not found');
+  return order;
+}
+
+/** Order data needed to render/email the printable order receipt (see lib/receiptPdf.ts). */
+export async function getOrderForReceipt(distributorId: string, orderId: string) {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, distributorId },
+    include: {
+      client: true,
+      distributor: { select: { name: true, phone: true, email: true } },
+      items: {
+        include: { product: { select: { name: true, code: true } } },
       },
     },
   });
@@ -94,21 +116,24 @@ export async function createOrder(
   distributorId: string,
   input: CreatePublicOrderInput
 ): Promise<ReturnType<typeof getOrderById>> {
-  const { rut, clientName, clientEmail, clientPhone, items, notes } = input;
+  const { documento, clientName, clientEmail, clientPhone, items, notes } = input;
 
-  await assertWithinLimit(distributorId, 'ordersThisMonth');
-
-  return prisma.$transaction(async (tx) => {
-    // 1. Find or create the client (upsert by distributorId + rut)
-    let client = await tx.client.findUnique({
-      where: { distributorId_rut: { distributorId, rut } },
+  const order = await prisma.$transaction(async (tx) => {
+    // 1. Find or create the client (upsert by distributorId + documento, matching either rut or cedula)
+    let client = await tx.client.findFirst({
+      where: { distributorId, OR: [{ rut: documento }, { cedula: documento }] },
     });
 
     if (!client) {
+      // Brand-new client placing an order without having been pre-registered by
+      // the distributor: figure out whether what they typed is a RUT or a
+      // Cédula so it lands in the right column.
+      const kind = classifyDocument(documento);
       client = await tx.client.create({
         data: {
           distributorId,
-          rut,
+          rut: kind === 'cedula' ? null : documento,
+          cedula: kind === 'cedula' ? documento : null,
           name: clientName ?? null,
           email: clientEmail ?? null,
           phone: clientPhone ?? null,
@@ -129,6 +154,14 @@ export async function createOrder(
         });
       }
     }
+
+    // 1.5. Precios especiales que este cliente pueda tener asignados —
+    // si el producto pedido tiene uno, se cobra ese en lugar del de lista.
+    const clientPrices = await tx.clientPrice.findMany({
+      where: { distributorId, clientId: client.id },
+      select: { productId: true, price: true },
+    });
+    const specialPriceByProductId = new Map(clientPrices.map((cp) => [cp.productId, cp.price]));
 
     // 2. Validate stock and build order items
     let total = 0;
@@ -155,12 +188,13 @@ export async function createOrder(
         );
       }
 
-      const subtotal = product.price * item.quantity;
+      const unitPrice = specialPriceByProductId.get(product.id) ?? product.price;
+      const subtotal = unitPrice * item.quantity;
       total += subtotal;
       orderItemsData.push({
         productId: product.id,
         quantity: item.quantity,
-        unitPrice: product.price,
+        unitPrice,
         subtotal,
       });
 
@@ -187,22 +221,27 @@ export async function createOrder(
     });
 
     return order;
-  }) as ReturnType<typeof getOrderById>;
+  });
+
+  // Chequear stock bajo recién después de que la transacción de venta se
+  // confirmó (evita generar alertas/emails si el pedido termina fallando
+  // y se revierte). Se hace fuera de la tx y de forma best-effort.
+  const uniqueProductIds = [...new Set(items.map((item) => item.productId))];
+  for (const productId of uniqueProductIds) {
+    await checkLowStock(distributorId, productId);
+  }
+
+  return order as ReturnType<typeof getOrderById>;
 }
 
 /**
  * Order history for a specific client, scoped to a distributor.
- * Used by the public "Mis Pedidos" view — matched by exact RUT (not fuzzy).
+ * Used by the public "Mis Pedidos" view, once the client has already been
+ * resolved (and their access code verified) by the caller.
  */
-export async function getClientOrderHistory(distributorId: string, rut: string) {
-  const client = await prisma.client.findUnique({
-    where: { distributorId_rut: { distributorId, rut } },
-  });
-
-  if (!client || !client.active) return [];
-
+export async function getClientOrderHistory(distributorId: string, clientId: string) {
   return prisma.order.findMany({
-    where: { distributorId, clientId: client.id },
+    where: { distributorId, clientId },
     include: {
       items: {
         include: { product: { select: { name: true, code: true, imageUrl: true } } },
@@ -228,7 +267,7 @@ export async function getDashboardStats(distributorId: string) {
         where: { distributorId },
         orderBy: { createdAt: 'desc' },
         take: 5,
-        include: { client: { select: { rut: true, name: true } } },
+        include: { client: { select: { rut: true, cedula: true, name: true } } },
       }),
     ]);
 

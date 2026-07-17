@@ -1,3 +1,5 @@
+import { loadAccess } from './access';
+
 const API_URL =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) ||
   'http://localhost:3001/api';
@@ -14,15 +16,19 @@ export interface Product {
   id: string;
   name: string;
   code: string | null;
+  brand: string | null;
   description: string | null;
   price: number;
+  /** Precio de lista original, solo presente cuando este cliente tiene un precio especial (price ya viene con el descuento aplicado). */
+  originalPrice: number | null;
   stock: number;
   category: string | null;
   imageUrl: string | null;
 }
 
 export interface ClientInfo {
-  rut: string;
+  rut: string | null;
+  cedula: string | null;
   name: string | null;
   email: string | null;
   phone: string | null;
@@ -34,24 +40,6 @@ export interface DistributorListItem {
   slug: string;
   logoUrl: string | null;
   categories: string[];
-}
-
-export interface SignupPlan {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  currency: string;
-  maxProducts: number | null;
-  maxClients: number | null;
-  maxOrdersMonth: number | null;
-}
-
-export interface SignupResult {
-  distributor: { id: string; name: string; slug: string; email: string };
-  trialDays: number;
-  trialEndsAt: string | null;
-  checkoutUrl: string | null;
 }
 
 export interface ClientOrder {
@@ -117,72 +105,59 @@ export async function getDistributors(category?: string): Promise<DistributorLis
 export async function verifyAccessCode(
   slug: string,
   code: string,
-  rut: string
-): Promise<{ valid: boolean }> {
-  return apiFetch<{ valid: boolean }>(`/public/${slug}/verify-code`, {
+  documento: string
+): Promise<{ valid: boolean; clientName: string | null }> {
+  return apiFetch<{ valid: boolean; clientName: string | null }>(`/public/${slug}/verify-code`, {
     method: 'POST',
-    body: JSON.stringify({ code, rut }),
-  });
-}
-
-export async function getSignupPlans(): Promise<SignupPlan[]> {
-  return apiFetch<SignupPlan[]>('/signup/plans');
-}
-
-export async function getSignupCategories(): Promise<string[]> {
-  return apiFetch<string[]>('/signup/categories');
-}
-
-export async function signupDistributor(payload: {
-  name: string;
-  email: string;
-  password: string;
-  slug: string;
-  phone?: string;
-  planId: string;
-  categories: string[];
-}): Promise<SignupResult> {
-  return apiFetch<SignupResult>('/signup', {
-    method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ code, documento }),
   });
 }
 
 export async function getClientOrders(
   slug: string,
-  rut: string,
+  documento: string,
   code: string
 ): Promise<ClientOrder[]> {
-  const params = new URLSearchParams({ rut, code });
+  const params = new URLSearchParams({ documento, code });
   return apiFetch<ClientOrder[]>(`/public/${slug}/orders?${params.toString()}`);
 }
 
 export async function getProducts(
   slug: string,
   search?: string,
-  category?: string
+  category?: string,
+  brand?: string
 ): Promise<Product[]> {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (category) params.set('category', category);
+  if (brand) params.set('brand', brand);
+  // Si el cliente ya verificó su acceso a esta distribuidora, mandamos su
+  // documento/código para que el backend le aplique su precio especial
+  // (si tiene uno) y lo muestre resaltado junto al precio de lista.
+  const access = loadAccess(slug);
+  if (access) {
+    params.set('documento', access.documento);
+    params.set('code', access.code);
+  }
   return apiFetch<Product[]>(`/public/${slug}/products?${params.toString()}`);
 }
 
-export async function getClientByRut(
+export async function getClientByDocumento(
   slug: string,
-  rut: string,
+  documento: string,
   code: string
 ): Promise<ClientInfo | null> {
   const params = new URLSearchParams({ code });
   return apiFetch<ClientInfo | null>(
-    `/public/${slug}/client/${encodeURIComponent(rut)}?${params.toString()}`
+    `/public/${slug}/client/${encodeURIComponent(documento)}?${params.toString()}`
   );
 }
 
 export async function createOrder(
   slug: string,
   payload: {
-    rut: string;
+    documento: string;
     clientName?: string;
     clientEmail?: string;
     clientPhone?: string;

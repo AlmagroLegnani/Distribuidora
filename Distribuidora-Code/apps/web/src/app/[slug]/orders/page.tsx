@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { getClientOrders, type ClientOrder } from '@/lib/api';
 import { loadAccess } from '@/lib/access';
 import { formatCurrency } from '@/lib/cart';
@@ -21,7 +22,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 function formatDate(date: string): string {
-  return new Intl.DateTimeFormat('es-CL', {
+  return new Intl.DateTimeFormat('es-UY', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -44,12 +45,12 @@ export default function MyOrdersPage() {
     setError('');
     const access = loadAccess(slug);
     if (!access) {
-      setError('No pudimos identificarte. Vuelve a ingresar tu RUT y código.');
+      setError('No pudimos identificarte. Vuelve a ingresar tu RUT o Cédula y código.');
       setLoading(false);
       return;
     }
     try {
-      const data = await getClientOrders(slug, access.rut, access.code);
+      const data = await getClientOrders(slug, access.documento, access.code);
       setOrders(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar tus pedidos');
@@ -62,20 +63,42 @@ export default function MyOrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
+  const backLink = (
+    <Link
+      href={`/${slug}`}
+      className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      </svg>
+      Volver al catálogo
+    </Link>
+  );
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+      <div className="space-y-5">
+        {backLink}
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+        </div>
       </div>
     );
   }
 
   if (error) {
-    return <div className="text-center py-16 text-sm text-red-600">{error}</div>;
+    return (
+      <div className="space-y-5">
+        {backLink}
+        <div className="text-center py-16 text-sm text-red-600">{error}</div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-5">
+      {backLink}
+
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Mis Pedidos</h2>
         <p className="text-sm text-gray-500 mt-0.5">

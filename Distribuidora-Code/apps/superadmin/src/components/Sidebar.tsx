@@ -6,7 +6,7 @@ import { logout } from '@/lib/auth';
 
 const navItems = [
   { href: '/', label: 'Distribuidoras' },
-  { href: '/plans', label: 'Planes' },
+  { href: '/plans', label: 'Plan' },
 ];
 
 export default function Sidebar() {

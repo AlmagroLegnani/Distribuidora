@@ -102,7 +102,7 @@ Tras ejecutar el seed:
 | App      | URL                             | Descripción                      |
 |----------|---------------------------------|----------------------------------|
 | Portal   | `http://localhost:3000/[slug]`  | Catálogo + carrito del cliente   |
-| Signup   | `http://localhost:3000/signup`  | Alta pública de nuevas distribuidoras (prueba gratis + MercadoPago) |
+| Signup   | `http://localhost:3000/signup`  | Alta pública de nuevas distribuidoras (3 meses de prueba gratis, sin pago) |
 | Backoffice | `http://localhost:3002`       | Panel del distribuidor           |
 | Panel de plataforma | `http://localhost:3003` | Gestión de distribuidoras, planes y pagos (dueño del SaaS) |
 | API      | `http://localhost:3001/api`     | REST API                         |
@@ -129,7 +129,7 @@ Tras ejecutar el seed:
 | Método | Ruta                  | Descripción                                   |
 |--------|-----------------------|------------------------------------------------|
 | GET    | `/api/signup/plans`   | Planes activos disponibles para elegir          |
-| POST   | `/api/signup`         | Crea distribuidora + prueba gratis de 7 días + link de pago MercadoPago |
+| POST   | `/api/signup`         | Crea distribuidora + 3 meses de prueba gratis (sin checkout, el pago se acuerda por contrato) |
 
 ### Plataforma / super-admin (requiere JWT de plataforma)
 | Método | Ruta                                       | Descripción                          |
@@ -241,9 +241,9 @@ Para los frontends en producción, despliega `apps/admin` y `apps/web` en Vercel
 ## Modelo de Negocio SaaS
 
 - **Planes**: se administran desde el panel de plataforma (`/plans`). Cada plan define precio mensual y límites (`maxProducts`, `maxClients`, `maxOrdersMonth`; `null` = ilimitado).
-- **Alta de una distribuidora**: `apps/web/signup` → elige plan → se crea con 7 días de prueba gratis (`TRIALING`, acceso inmediato) y se genera un checkout de MercadoPago para configurar el pago.
-- **Cobro**: MercadoPago Checkout Pro. El webhook (`/api/webhooks/mercadopago`) confirma el pago, activa la suscripción (`ACTIVE`) y extiende el período 30 días.
-- **Vencimiento y gracia**: si no hay pago antes de que termine el período, la suscripción pasa a `PAST_DUE` con 5 días de gracia; luego a `SUSPENDED` (se bloquea el login del distribuidor y su catálogo público). Esta verificación es *lazy* (se recalcula en cada login o vista del panel de plataforma), no hay un cron real corriendo.
+- **Alta de una distribuidora**: `apps/web/signup` → elige plan → se crea con 3 meses de prueba gratis (`TRIALING`, acceso inmediato), sin pedir pago ni generar checkout. La prueba gratuita se acuerda de palabra con el dueño de la distribuidora; después se firma un contrato para el pago mensual.
+- **Cobro**: manual, según lo acordado por contrato (transferencia, efectivo, etc.). El panel de plataforma permite marcar un período como pagado (`mark-paid`) para extender el acceso 30 días. El checkout de MercadoPago sigue disponible como opción de autoservicio desde Configuración (`/auth/billing/checkout`) para el distribuidor que quiera pagar online, pero ya no es parte obligatoria del alta.
+- **Vencimiento y gracia**: si no hay pago (manual o vía MercadoPago) antes de que termine el período, la suscripción pasa a `PAST_DUE` con 5 días de gracia; luego a `SUSPENDED` (se bloquea el login del distribuidor y su catálogo público). Esta verificación es *lazy* (se recalcula en cada login o vista del panel de plataforma), no hay un cron real corriendo.
 - **Límites de plan**: se validan al crear productos, clientes y pedidos (`subscriptionService.assertWithinLimit`), devolviendo error 403 con un mensaje claro cuando se alcanza el límite.
 - **Pagos manuales**: el panel de plataforma permite marcar un período como pagado manualmente (transferencia, efectivo), independientemente de MercadoPago.
 - **Distribuidoras provisionadas manualmente** (como la demo del seed) no tienen fila de `Subscription` y no están sujetas a límites ni auto-suspensión — su `active` se administra directamente.

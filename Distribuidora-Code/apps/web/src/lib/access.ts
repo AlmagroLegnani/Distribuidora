@@ -1,6 +1,9 @@
 export interface StoredAccess {
-  rut: string;
+  /** Whatever the client typed to identify themselves — their RUT or their Cédula. */
+  documento: string;
   code: string;
+  /** Nombre (o RUT/Cédula si no tiene nombre cargado) para mostrar en el header — se guarda una sola vez al verificar el código, para no tener que volver a pedirlo. */
+  clientName?: string | null;
 }
 
 function storageKey(slug: string): string {

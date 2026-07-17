@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { sendMail } from '../lib/mailer';
 
 interface OrderItem {
   product: { name: string };
@@ -13,7 +13,8 @@ interface OrderNotificationData {
   createdAt: Date;
   notes: string | null;
   client: {
-    rut: string;
+    rut: string | null;
+    cedula: string | null;
     name: string | null;
     email: string | null;
   };
@@ -28,11 +29,15 @@ interface DistributorSettings {
 }
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('es-CL', {
+  return new Intl.NumberFormat('es-UY', {
     style: 'currency',
-    currency: 'CLP',
+    currency: 'UYU',
     minimumFractionDigits: 0,
   }).format(amount);
+}
+
+function documentLine(client: { rut: string | null; cedula: string | null }): { label: string; value: string } {
+  return client.rut ? { label: 'RUT', value: client.rut } : { label: 'Cédula', value: client.cedula || '' };
 }
 
 function buildOrderHtml(order: OrderNotificationData, forClient = false): string {
@@ -58,8 +63,8 @@ function buildOrderHtml(order: OrderNotificationData, forClient = false): string
   </div>
   <div style="border:1px solid #e0e0e0;border-top:none;padding:20px;border-radius:0 0 8px 8px;">
     <p><strong>Pedido #:</strong> ${shortId}</p>
-    <p><strong>Fecha:</strong> ${new Date(order.createdAt).toLocaleString('es-CL')}</p>
-    <p><strong>RUT:</strong> ${order.client.rut}</p>
+    <p><strong>Fecha:</strong> ${new Date(order.createdAt).toLocaleString('es-UY')}</p>
+    <p><strong>${documentLine(order.client).label}:</strong> ${documentLine(order.client).value}</p>
     <p><strong>Empresa:</strong> ${order.client.name || 'No especificado'}</p>
     ${order.notes ? `<p><strong>Notas:</strong> ${order.notes}</p>` : ''}
     <h3 style="border-bottom:2px solid #1e3a5f;padding-bottom:8px;">Detalle del Pedido</h3>
@@ -89,21 +94,6 @@ function buildOrderHtml(order: OrderNotificationData, forClient = false): string
 </html>`;
 }
 
-function createTransporter() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: parseInt(SMTP_PORT || '587', 10),
-    secure: SMTP_PORT === '465',
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
-}
-
 async function sendWhatsApp(order: OrderNotificationData, toNumber: string): Promise<void> {
   const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM } = process.env;
 
@@ -117,14 +107,15 @@ async function sendWhatsApp(order: OrderNotificationData, toNumber: string): Pro
     .map((i) => `- ${i.product.name} x${i.quantity} — ${formatCurrency(i.subtotal)}`)
     .join('\n');
 
+  const doc = documentLine(order.client);
   const message =
     `🛒 *Nuevo Pedido Recibido*\n` +
     `📋 Pedido #${shortId}\n` +
-    `👤 RUT: ${order.client.rut}\n` +
+    `👤 ${doc.label}: ${doc.value}\n` +
     `🏢 Empresa: ${order.client.name || 'No especificado'}\n\n` +
     `Productos:\n${itemsList}\n\n` +
     `💰 *Total: ${formatCurrency(order.total)}*\n` +
-    `📅 ${new Date(order.createdAt).toLocaleString('es-CL')}`;
+    `📅 ${new Date(order.createdAt).toLocaleString('es-UY')}`;
 
   // Dynamic import to avoid loading twilio if not needed
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -142,30 +133,30 @@ export async function sendOrderNotifications(
   order: OrderNotificationData,
   settings: DistributorSettings
 ): Promise<void> {
-  const transporter = createTransporter();
   const shortId = order.id.slice(-8).toUpperCase();
-  const fromEmail = process.env.EMAIL_FROM || 'noreply@stockapp.com';
 
   // Notify distributor
-  if (settings.notificationEmail && transporter) {
+  if (settings.notificationEmail) {
     try {
-      await transporter.sendMail({
-        from: fromEmail,
+      await sendMail({
         to: settings.notificationEmail,
-        subject: `Nuevo Pedido #${shortId} - RUT: ${order.client.rut}`,
+        subject: `Nuevo Pedido #${shortId} - ${documentLine(order.client).label}: ${documentLine(order.client).value}`,
         html: buildOrderHtml(order, false),
       });
       console.log(`[${new Date().toISOString()}] Email sent to distributor: ${settings.notificationEmail}`);
     } catch (err) {
       console.error(`[${new Date().toISOString()}] Failed to send email to distributor:`, err);
     }
+  } else if (!settings.notificationEmail) {
+    console.warn(
+      `[${new Date().toISOString()}] No se mandó aviso de pedido a la distribuidora: no tiene "Email de notificaciones" cargado en Configuración.`
+    );
   }
 
   // Notify client
-  if (settings.sendClientEmail && order.client.email && transporter) {
+  if (settings.sendClientEmail && order.client.email) {
     try {
-      await transporter.sendMail({
-        from: fromEmail,
+      await sendMail({
         to: order.client.email,
         subject: `Confirmación de Pedido #${shortId}`,
         html: buildOrderHtml(order, true),
@@ -174,6 +165,12 @@ export async function sendOrderNotifications(
     } catch (err) {
       console.error(`[${new Date().toISOString()}] Failed to send email to client:`, err);
     }
+  } else if (settings.sendClientEmail && !order.client.email) {
+    console.warn(
+      `[${new Date().toISOString()}] No se mandó confirmación al cliente: el cliente (documento ${
+        order.client.rut || order.client.cedula || '?'
+      }) no tiene email cargado.`
+    );
   }
 
   // WhatsApp
