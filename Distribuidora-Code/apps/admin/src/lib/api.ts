@@ -55,6 +55,76 @@ export async function apiRequest<T>(
   return res.json();
 }
 
+/**
+ * Requests the printable PDF receipt for an order. Unlike `apiRequest`, this
+ * expects a binary (application/pdf) response instead of JSON, and reads the
+ * `X-Client-Email` response header the API sets when it also emailed the
+ * receipt to the client, so the caller can surface that to the user.
+ */
+export async function fetchOrderReceipt(orderId: string): Promise<{ blob: Blob; emailedTo: string | null }> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_URL}/orders/${orderId}/receipt`, { method: 'POST', headers });
+
+  if (res.status === 401) {
+    clearAuth();
+    if (typeof window !== 'undefined') window.location.href = '/login';
+    throw new Error('Session expired. Please log in again.');
+  }
+
+  if (!res.ok) {
+    let message = `Request failed: ${res.status}`;
+    try {
+      const body = await res.json();
+      message = body.error || message;
+    } catch {
+      // ignore json parse errors
+    }
+    throw new Error(message);
+  }
+
+  const blob = await res.blob();
+  return { blob, emailedTo: res.headers.get('X-Client-Email') };
+}
+
+export interface StockAlert {
+  id: string;
+  type: 'LOW_STOCK' | 'PAYMENT_DUE';
+  message: string | null;
+  productId: string | null;
+  productName: string | null;
+  stockAtAlert: number | null;
+  threshold: number | null;
+  read: boolean;
+  emailSentAt: string | null;
+  createdAt: string;
+}
+
+/** Alertas de stock bajo aún no vistas — usadas por el modal al ingresar al panel. */
+export async function getUnreadNotifications(): Promise<StockAlert[]> {
+  return apiRequest<StockAlert[]>('/notifications/unread', { method: 'GET' });
+}
+
+/** Historial completo de alertas de stock bajo, para la sección de Notificaciones. */
+export async function getNotifications(): Promise<StockAlert[]> {
+  return apiRequest<StockAlert[]>('/notifications', { method: 'GET' });
+}
+
+/** Marca notificaciones como leídas. Sin `ids`, marca todas las pendientes. */
+export async function markNotificationsRead(ids?: string[]): Promise<void> {
+  await apiRequest('/notifications/read', {
+    method: 'PATCH',
+    body: JSON.stringify({ ids }),
+  });
+}
+
+/** Elimina una notificación puntual (ya resuelta, ej. se repuso el stock). */
+export async function deleteNotification(id: string): Promise<void> {
+  await apiRequest(`/notifications/${id}`, { method: 'DELETE' });
+}
+
 export const api = {
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
   post: <T>(endpoint: string, body: unknown) =>

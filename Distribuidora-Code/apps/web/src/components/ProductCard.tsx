@@ -8,8 +8,10 @@ interface Product {
   id: string;
   name: string;
   code: string | null;
+  brand: string | null;
   description: string | null;
   price: number;
+  originalPrice?: number | null;
   stock: number;
   category: string | null;
 }
@@ -44,6 +46,9 @@ export default function ProductCard({ product }: { product: Product }) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="font-semibold text-gray-900 text-sm leading-tight">{product.name}</h3>
+            {product.brand && (
+              <span className="text-xs text-blue-600 font-medium block">{product.brand}</span>
+            )}
             {product.code && (
               <span className="text-xs text-gray-400 font-mono">{product.code}</span>
             )}
@@ -66,7 +71,22 @@ export default function ProductCard({ product }: { product: Product }) {
       </div>
 
       {/* Price */}
-      <div className="text-xl font-bold text-blue-700">{formatCurrency(product.price)}</div>
+      <div className="flex items-baseline gap-2">
+        {product.originalPrice != null && (
+          <span
+            className="text-sm text-gray-400 line-through"
+            style={{ textDecoration: 'line-through' }}
+          >
+            {formatCurrency(product.originalPrice)}
+          </span>
+        )}
+        <span className="text-xl font-bold text-blue-700">{formatCurrency(product.price)}</span>
+        {product.originalPrice != null && (
+          <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">
+            precio único
+          </span>
+        )}
+      </div>
 
       {/* Add to cart */}
       {remainingStock > 0 ? (

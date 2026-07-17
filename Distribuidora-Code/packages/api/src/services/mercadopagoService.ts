@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import { getMercadoPagoClient } from '../lib/mercadopago';
 import { activateSubscription, recordPayment } from './subscriptionService';
 
-const PLATFORM_URL = process.env.PLATFORM_URL || 'http://localhost:3000';
+const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:3002';
 const API_PUBLIC_URL = process.env.API_PUBLIC_URL || 'http://localhost:3001';
 
 /**
@@ -32,17 +32,19 @@ export async function createCheckoutPreference(subscriptionId: string): Promise<
           id: sub.plan.id,
           title: `Suscripción StockApp — Plan ${sub.plan.name}`,
           quantity: 1,
-          currency_id: sub.plan.currency || 'CLP',
+          currency_id: sub.plan.currency || 'UYU',
           unit_price: sub.plan.price,
         },
       ],
       payer: { email: sub.distributor.email },
       external_reference: sub.id,
       notification_url: `${API_PUBLIC_URL}/api/webhooks/mercadopago`,
+      // El pago se inicia desde el botón "Pagar ahora" en Configuración (distribuidor
+      // ya logueado), así que al volver de MercadoPago lo mandamos de nuevo ahí.
       back_urls: {
-        success: `${PLATFORM_URL}/signup/success?slug=${sub.distributor.slug}`,
-        pending: `${PLATFORM_URL}/signup/success?slug=${sub.distributor.slug}&pending=1`,
-        failure: `${PLATFORM_URL}/signup/success?slug=${sub.distributor.slug}&failed=1`,
+        success: `${ADMIN_URL}/settings?payment=success`,
+        pending: `${ADMIN_URL}/settings?payment=pending`,
+        failure: `${ADMIN_URL}/settings?payment=failed`,
       },
       auto_return: 'approved',
     },
@@ -101,7 +103,7 @@ export async function handlePaymentWebhook(query: Record<string, unknown>, body:
 
   await recordPayment(sub.id, {
     amount: payment.transaction_amount ?? 0,
-    currency: payment.currency_id ?? 'CLP',
+    currency: payment.currency_id ?? 'UYU',
     status: payment.status ?? 'unknown',
     method: 'mercadopago',
     mpPaymentId: String(payment.id),

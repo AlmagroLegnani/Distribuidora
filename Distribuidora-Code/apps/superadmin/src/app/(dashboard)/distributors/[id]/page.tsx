@@ -36,7 +36,7 @@ interface DistributorDetail {
 
 function formatDate(date: string | null): string {
   if (!date) return '—';
-  return new Intl.DateTimeFormat('es-CL', {
+  return new Intl.DateTimeFormat('es-UY', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -45,8 +45,8 @@ function formatDate(date: string | null): string {
   }).format(new Date(date));
 }
 
-function formatCurrency(amount: number, currency = 'CLP'): string {
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency, minimumFractionDigits: 0 }).format(amount);
+function formatCurrency(amount: number, currency = 'UYU'): string {
+  return new Intl.NumberFormat('es-UY', { style: 'currency', currency, minimumFractionDigits: 0 }).format(amount);
 }
 
 export default function DistributorDetailPage() {

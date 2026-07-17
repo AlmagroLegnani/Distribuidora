@@ -4,7 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
-import { formatCurrency, validateRUT, formatRUT } from '@/lib/cart';
+import { formatCurrency, validateDocument, formatDocument } from '@/lib/cart';
 import { createOrder } from '@/lib/api';
 import { loadAccess } from '@/lib/access';
 
@@ -14,34 +14,34 @@ export default function CartPage() {
   const router = useRouter();
   const { items, total, updateQuantity, removeItem, clearCart } = useCart();
 
-  const [rut, setRut] = useState('');
-  const [rutLocked, setRutLocked] = useState(false);
-  const [rutError, setRutError] = useState('');
+  const [documento, setDocumento] = useState('');
+  const [documentoLocked, setDocumentoLocked] = useState(false);
+  const [documentoError, setDocumentoError] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     const access = loadAccess(slug);
-    if (!access?.rut) return;
+    if (!access?.documento) return;
 
-    setRut(access.rut);
-    setRutLocked(true);
+    setDocumento(access.documento);
+    setDocumentoLocked(true);
   }, [slug]);
 
-  function handleRutChange(value: string) {
-    setRut(value);
+  function handleDocumentoChange(value: string) {
+    setDocumento(value);
     if (value.length > 2) {
-      setRutError(validateRUT(value) ? '' : 'RUT inválido');
+      setDocumentoError(validateDocument(value) ? '' : 'RUT o Cédula inválido');
     } else {
-      setRutError('');
+      setDocumentoError('');
     }
   }
 
-  function handleRutBlur() {
-    if (rut) {
-      setRut(formatRUT(rut));
-      setRutError(validateRUT(rut) ? '' : 'RUT inválido');
+  function handleDocumentoBlur() {
+    if (documento) {
+      setDocumento(formatDocument(documento));
+      setDocumentoError(validateDocument(documento) ? '' : 'RUT o Cédula inválido');
     }
   }
 
@@ -49,8 +49,8 @@ export default function CartPage() {
     e.preventDefault();
     setSubmitError('');
 
-    if (!rutLocked && !validateRUT(rut)) {
-      setRutError('Ingresa un RUT válido');
+    if (!documentoLocked && !validateDocument(documento)) {
+      setDocumentoError('Ingresa un RUT o Cédula válido');
       return;
     }
 
@@ -62,7 +62,7 @@ export default function CartPage() {
     setSubmitting(true);
     try {
       const order = await createOrder(slug, {
-        rut,
+        documento,
         notes: notes || undefined,
         items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       });
@@ -188,24 +188,24 @@ export default function CartPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                RUT Empresa <span className="text-red-500">*</span>
+                RUT o Cédula <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                value={rut}
-                onChange={(e) => handleRutChange(e.target.value)}
-                onBlur={handleRutBlur}
-                placeholder="12.345.678-9"
+                value={documento}
+                onChange={(e) => handleDocumentoChange(e.target.value)}
+                onBlur={handleDocumentoBlur}
+                placeholder="21-123456-0019 ó 1.234.567-8"
                 required
-                disabled={rutLocked}
-                className={`input ${rutError ? 'border-red-400 focus:ring-red-400' : ''} ${
-                  rutLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
+                disabled={documentoLocked}
+                className={`input ${documentoError ? 'border-red-400 focus:ring-red-400' : ''} ${
+                  documentoLocked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
                 }`}
               />
-              {rutLocked ? (
-                <p className="text-xs text-gray-400 mt-1">RUT verificado al ingresar</p>
+              {documentoLocked ? (
+                <p className="text-xs text-gray-400 mt-1">Verificado al ingresar</p>
               ) : (
-                rutError && <p className="text-xs text-red-500 mt-1">{rutError}</p>
+                documentoError && <p className="text-xs text-red-500 mt-1">{documentoError}</p>
               )}
             </div>
 
@@ -233,7 +233,7 @@ export default function CartPage() {
               </div>
               <button
                 type="submit"
-                disabled={submitting || !!rutError}
+                disabled={submitting || !!documentoError}
                 className="btn-primary w-full py-3 text-base"
               >
                 {submitting ? (

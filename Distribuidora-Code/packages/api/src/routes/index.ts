@@ -5,8 +5,8 @@ import clientRoutes from './clients';
 import orderRoutes from './orders';
 import publicRoutes from './public';
 import platformRoutes from './platform';
-import signupRoutes from './signup';
 import webhookRoutes from './webhooks';
+import notificationRoutes from './notifications';
 
 const router = Router();
 
@@ -16,7 +16,11 @@ router.use('/clients', clientRoutes);
 router.use('/orders', orderRoutes);
 router.use('/public', publicRoutes);
 router.use('/platform', platformRoutes);
-router.use('/signup', signupRoutes);
+// Ya no hay autoregistro público de distribuidoras — se dan de alta desde
+// /api/platform/distributors (panel de superadmin). Ver signup.ts.bak /
+// signupController.ts.bak / signupService.ts.bak si hace falta revisar el
+// flujo anterior.
 router.use('/webhooks', webhookRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;

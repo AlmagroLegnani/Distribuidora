@@ -1,6 +1,5 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
-import { assertWithinLimit } from './subscriptionService';
 import { generateAccessCode } from '../lib/accessCode';
 import { sendMail } from '../lib/mailer';
 import type { PaginationParams } from '../lib/pagination';
@@ -17,6 +16,7 @@ export async function listClients(
     ...(search && {
       OR: [
         { rut: { contains: search, mode: 'insensitive' as const } },
+        { cedula: { contains: search, mode: 'insensitive' as const } },
         { name: { contains: search, mode: 'insensitive' as const } },
         { email: { contains: search, mode: 'insensitive' as const } },
       ],
@@ -54,22 +54,28 @@ export async function getClientById(distributorId: string, clientId: string) {
 }
 
 export async function createClient(distributorId: string, data: CreateClientInput) {
-  const existing = await prisma.client.findUnique({
-    where: { distributorId_rut: { distributorId, rut: data.rut } },
+  const orConditions = [
+    ...(data.rut ? [{ rut: data.rut }] : []),
+    ...(data.cedula ? [{ cedula: data.cedula }] : []),
+  ];
+
+  const existing = await prisma.client.findFirst({
+    where: { distributorId, OR: orConditions },
   });
 
   let client;
   if (existing) {
     if (existing.active) {
-      throw new AppError(409, `A client with RUT ${data.rut} already exists`);
+      throw new AppError(
+        409,
+        `Ya existe un cliente activo con ese ${data.rut ? 'RUT' : 'esa Cédula'} (${data.rut || data.cedula})`
+      );
     }
-    await assertWithinLimit(distributorId, 'clients');
     client = await prisma.client.update({
       where: { id: existing.id },
       data: { ...data, active: true },
     });
   } else {
-    await assertWithinLimit(distributorId, 'clients');
     client = await prisma.client.create({ data: { distributorId, ...data } });
   }
 
@@ -94,13 +100,16 @@ export async function generateAndSendAccessCode(distributorId: string, clientId:
     data: { accessCode, accessCodeSentAt: new Date() },
   });
 
+  const documentLabel = client.rut ? 'RUT' : 'Cédula';
+  const documentValue = client.rut || client.cedula;
+
   await sendMail({
     to: client.email,
     subject: `Tu código de acceso a ${client.distributor.name}`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
         <h2>Bienvenido a ${client.distributor.name}</h2>
-        <p>Ya podés acceder al catálogo con tu RUT (<strong>${client.rut}</strong>) y este código de acceso:</p>
+        <p>Ya podés acceder al catálogo con tu ${documentLabel} (<strong>${documentValue}</strong>) y este código de acceso:</p>
         <p style="font-size:24px;font-weight:bold;letter-spacing:3px;background:#f3f4f6;padding:14px 20px;border-radius:8px;text-align:center;">${accessCode}</p>
         <p style="color:#666;font-size:13px;">Guarda este código, lo vas a necesitar cada vez que quieras ingresar a hacer un pedido.</p>
       </div>`,
@@ -127,16 +136,17 @@ export async function deactivateClient(distributorId: string, clientId: string) 
 
 /**
  * Confirms that `code` is the current access code for the client identified by
- * `rut` within this distributor. Used to gate every public endpoint that
- * exposes client data (catalog access, order history, contact lookup).
+ * `documento` (their RUT or Cédula) within this distributor. Used to gate
+ * every public endpoint that exposes client data (catalog access, order
+ * history, contact lookup).
  */
-export async function verifyClientAccessCode(distributorId: string, rut: string, code: string) {
-  const client = await prisma.client.findUnique({
-    where: { distributorId_rut: { distributorId, rut } },
+export async function verifyClientAccessCode(distributorId: string, documento: string, code: string) {
+  const client = await prisma.client.findFirst({
+    where: { distributorId, OR: [{ rut: documento }, { cedula: documento }] },
   });
 
   if (!client || !client.active) {
-    throw new AppError(401, 'RUT no registrado. Contacta a tu distribuidora.');
+    throw new AppError(401, 'RUT/Cédula no registrado. Contacta a tu distribuidora.');
   }
 
   if (!client.accessCode || client.accessCode.trim().toUpperCase() !== code.trim().toUpperCase()) {
@@ -144,4 +154,23 @@ export async function verifyClientAccessCode(distributorId: string, rut: string,
   }
 
   return client;
+}
+
+/**
+ * Igual que verifyClientAccessCode pero sin lanzar error si no matchea —
+ * se usa para resolver "qué cliente está viendo el catálogo" en endpoints
+ * públicos donde un documento/código inválido no debería romper la carga
+ * del catálogo, solo hacer que se muestren los precios de lista normales.
+ */
+export async function findVerifiedClientSoft(
+  distributorId: string,
+  documento?: string,
+  code?: string
+) {
+  if (!documento || !code) return null;
+  try {
+    return await verifyClientAccessCode(distributorId, documento, code);
+  } catch {
+    return null;
+  }
 }

@@ -2,9 +2,32 @@ import { SubscriptionStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 
-export const TRIAL_DAYS = 7;
+export const TRIAL_DAYS = 90; // 3 meses de prueba gratuita, acordados de palabra con cada distribuidora
 export const GRACE_DAYS = 5;
 export const BILLING_PERIOD_DAYS = 30;
+
+/**
+ * Cuenta los días hábiles (lunes a viernes, sin feriados) que faltan desde hoy
+ * hasta `target`. Se usa para resaltar en el panel de superadmin qué
+ * distribuidoras vencen pronto y para redactar el aviso manual de pago (ver
+ * platformService.notifyPaymentDue). Si `target` ya pasó, devuelve 0.
+ */
+export function businessDaysUntil(target: Date): number {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const end = new Date(target);
+  end.setHours(0, 0, 0, 0);
+  if (end <= now) return 0;
+
+  let count = 0;
+  const cur = new Date(now);
+  while (cur < end) {
+    cur.setDate(cur.getDate() + 1);
+    const day = cur.getDay();
+    if (day !== 0 && day !== 6) count++;
+  }
+  return count;
+}
 
 /**
  * Re-evaluates a distributor's subscription state based on trial/period end
@@ -117,61 +140,6 @@ export async function reactivateDistributor(distributorId: string) {
   }
 }
 
-type LimitResource = 'products' | 'clients' | 'ordersThisMonth';
-
-/**
- * Throws a 403 AppError if creating one more `resource` would exceed the
- * distributor's plan limit. No-ops for distributors without a subscription
- * (legacy/manually-provisioned tenants aren't plan-limited).
- */
-export async function assertWithinLimit(
-  distributorId: string,
-  resource: LimitResource
-): Promise<void> {
-  const sub = await prisma.subscription.findUnique({
-    where: { distributorId },
-    include: { plan: true },
-  });
-  if (!sub) return;
-
-  const { plan } = sub;
-
-  if (resource === 'products' && plan.maxProducts != null) {
-    const count = await prisma.product.count({ where: { distributorId, active: true } });
-    if (count >= plan.maxProducts) {
-      throw new AppError(
-        403,
-        `Alcanzaste el límite de ${plan.maxProducts} productos de tu plan "${plan.name}". Actualiza tu plan para agregar más.`
-      );
-    }
-  }
-
-  if (resource === 'clients' && plan.maxClients != null) {
-    const count = await prisma.client.count({ where: { distributorId, active: true } });
-    if (count >= plan.maxClients) {
-      throw new AppError(
-        403,
-        `Alcanzaste el límite de ${plan.maxClients} clientes de tu plan "${plan.name}". Actualiza tu plan para agregar más.`
-      );
-    }
-  }
-
-  if (resource === 'ordersThisMonth' && plan.maxOrdersMonth != null) {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-    const count = await prisma.order.count({
-      where: { distributorId, createdAt: { gte: startOfMonth } },
-    });
-    if (count >= plan.maxOrdersMonth) {
-      throw new AppError(
-        403,
-        `Alcanzaste el límite de ${plan.maxOrdersMonth} pedidos mensuales de tu plan "${plan.name}". Actualiza tu plan para seguir recibiendo pedidos.`
-      );
-    }
-  }
-}
-
 export async function recordPayment(
   subscriptionId: string,
   data: {
@@ -186,7 +154,7 @@ export async function recordPayment(
     data: {
       subscriptionId,
       amount: data.amount,
-      currency: data.currency ?? 'CLP',
+      currency: data.currency ?? 'UYU',
       status: data.status,
       method: data.method ?? 'mercadopago',
       mpPaymentId: data.mpPaymentId ?? null,

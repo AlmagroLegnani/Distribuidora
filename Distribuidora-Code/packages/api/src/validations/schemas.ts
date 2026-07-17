@@ -11,6 +11,7 @@ export const loginSchema = z.object({
 export const createProductSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   code: z.string().max(50).optional().nullable(),
+  brand: z.string().max(100).optional().nullable(),
   description: z.string().max(1000).optional().nullable(),
   price: z.number().positive('Price must be positive'),
   stock: z.number().int().min(0, 'Stock cannot be negative'),
@@ -25,15 +26,37 @@ export const updateStockSchema = z.object({
   stock: z.number().int().min(0, 'Stock cannot be negative'),
 });
 
+export const setClientPricesSchema = z.object({
+  // Puede venir en 0 cuando clientIds está vacío (o sea: "sacar todos los
+  // precios especiales de este producto") — la validación de que sea > 0
+  // cuando sí hay clientes tildados se hace en el servicio.
+  price: z.number().min(0),
+  clientIds: z.array(z.string().cuid()),
+});
+
 // ─── Client ───────────────────────────────────────────────────────────────
-export const createClientSchema = z.object({
-  rut: z.string().min(8, 'RUT must be at least 8 characters').max(12),
+// El cliente puede escribir el RUT/Cédula con o sin puntos y guion (ej.
+// "1.234.567-8" o "12345678") — se limpia a solo dígitos antes de validar
+// el largo, así ninguno de los dos formatos se rechaza por error.
+const onlyDigits = (val: unknown): unknown => (typeof val === 'string' ? val.replace(/\D/g, '') : val);
+
+// A client must have at least a RUT or a Cédula (small almacenes often only
+// have the latter) — enforced below with .refine(), and at the DB level with
+// a CHECK constraint (see packages/db/prisma/migrations).
+const clientBaseSchema = z.object({
+  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
+  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
   name: z.string().max(200).optional().nullable(),
   email: z.string().email('El email es obligatorio para poder enviar el código de acceso'),
   phone: z.string().max(20).optional().nullable(),
 });
 
-export const updateClientSchema = createClientSchema.partial().omit({ rut: true });
+export const createClientSchema = clientBaseSchema.refine(
+  (data) => Boolean(data.rut?.trim()) || Boolean(data.cedula?.trim()),
+  { message: 'Debes ingresar el RUT o la Cédula del cliente', path: ['rut'] }
+);
+
+export const updateClientSchema = clientBaseSchema.omit({ rut: true, cedula: true }).partial();
 
 // ─── Order ────────────────────────────────────────────────────────────────
 export const orderStatusSchema = z.object({
@@ -42,7 +65,7 @@ export const orderStatusSchema = z.object({
 
 // ─── Public order creation ─────────────────────────────────────────────────
 export const createPublicOrderSchema = z.object({
-  rut: z.string().min(8, 'RUT is required').max(12),
+  documento: z.string().min(7, 'RUT o Cédula es obligatorio').max(12),
   clientName: z.string().max(200).optional(),
   clientEmail: z.string().email().optional().nullable(),
   clientPhone: z.string().max(20).optional().nullable(),
@@ -66,7 +89,7 @@ export const createPlanSchema = z.object({
     .max(50)
     .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers and dashes'),
   price: z.number().min(0),
-  currency: z.string().max(10).optional().default('CLP'),
+  currency: z.string().max(10).optional().default('UYU'),
   maxProducts: z.number().int().positive().nullable().optional(),
   maxClients: z.number().int().positive().nullable().optional(),
   maxOrdersMonth: z.number().int().positive().nullable().optional(),
@@ -80,21 +103,21 @@ export const markPaidSchema = z.object({
   note: z.string().max(500).optional(),
 });
 
-// ─── Distributor self-signup ────────────────────────────────────────────────
-export const signupSchema = z.object({
+// ─── Alta de distribuidora por la plataforma ─────────────────────────────────
+// Ya no hay autoregistro público: el equipo de StockApp carga la distribuidora
+// desde el panel de superadmin. El sistema genera un código de acceso único y
+// se lo envía por email — ese código funciona como su contraseña inicial (ver
+// platformService.createDistributor).
+export const createDistributorSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   email: z.string().email('Invalid email format'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
   slug: z
     .string()
     .min(3, 'Slug must be at least 3 characters')
     .max(50)
     .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers and dashes'),
-  phone: z.string().max(20).optional().nullable(),
+  phone: z.string().min(1, 'El teléfono es obligatorio').max(20),
   planId: z.string().cuid('Invalid plan ID'),
-  categories: z
-    .array(z.enum(DISTRIBUTOR_CATEGORIES))
-    .min(1, 'Selecciona al menos un rubro'),
 });
 
 // ─── Password reset ──────────────────────────────────────────────────────────
@@ -110,7 +133,7 @@ export const resetPasswordSchema = z.object({
 // ─── Public catalog access ──────────────────────────────────────────────────
 export const verifyAccessCodeSchema = z.object({
   code: z.string().min(1, 'Code is required'),
-  rut: z.string().min(8, 'RUT is required').max(12),
+  documento: z.string().min(7, 'RUT o Cédula es obligatorio').max(12),
 });
 
 // ─── Settings ─────────────────────────────────────────────────────────────
@@ -148,7 +171,7 @@ export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 export type MarkPaidInput = z.infer<typeof markPaidSchema>;
-export type SignupInput = z.infer<typeof signupSchema>;
+export type CreateDistributorInput = z.infer<typeof createDistributorSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, fetchOrderReceipt } from '@/lib/api';
 import { formatCurrency, formatDate, STATUS_LABELS, STATUS_BADGE, OrderStatus } from '@/lib/utils';
 
 interface OrderDetail {
@@ -14,7 +14,8 @@ interface OrderDetail {
   updatedAt: string;
   client: {
     id: string;
-    rut: string;
+    rut: string | null;
+    cedula: string | null;
     name: string | null;
     email: string | null;
     phone: string | null;
@@ -40,6 +41,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     api
@@ -62,6 +64,23 @@ export default function OrderDetailPage() {
       alert(err instanceof Error ? err.message : 'Error al actualizar estado');
     } finally {
       setUpdating(false);
+    }
+  }
+
+  async function handlePrintReceipt() {
+    if (!order) return;
+    setPrinting(true);
+    try {
+      const { blob, emailedTo } = await fetchOrderReceipt(order.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      if (emailedTo) {
+        alert(`Comprobante generado. También se envió por email a ${emailedTo}.`);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al generar el comprobante');
+    } finally {
+      setPrinting(false);
     }
   }
 
@@ -110,38 +129,51 @@ export default function OrderDetailPage() {
         </div>
 
         {/* Actions */}
-        {(nextStatus || order.status !== 'CANCELLED') && (
-          <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-            {nextStatus && (
-              <button
-                onClick={() => changeStatus(nextStatus)}
-                disabled={updating}
-                className="btn-primary"
-              >
-                {updating ? 'Actualizando...' : `Marcar como "${STATUS_LABELS[nextStatus]}"`}
-              </button>
-            )}
-            {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
-              <button
-                onClick={() => changeStatus('CANCELLED')}
-                disabled={updating}
-                className="btn-danger"
-              >
-                Cancelar Pedido
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+          {nextStatus && (
+            <button
+              onClick={() => changeStatus(nextStatus)}
+              disabled={updating}
+              className="btn-primary"
+            >
+              {updating ? 'Actualizando...' : `Marcar como "${STATUS_LABELS[nextStatus]}"`}
+            </button>
+          )}
+          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+            <button
+              onClick={() => changeStatus('CANCELLED')}
+              disabled={updating}
+              className="btn-danger"
+            >
+              Cancelar Pedido
+            </button>
+          )}
+          <button onClick={handlePrintReceipt} disabled={printing} className="btn-secondary">
+            {printing ? 'Generando...' : 'Imprimir comprobante'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-2">
+          Genera un comprobante de pedido en PDF (no es una factura fiscal electrónica) y, si el cliente
+          tiene email registrado, se lo envía automáticamente.
+        </p>
       </div>
 
       {/* Client Info */}
       <div className="card p-5">
         <h3 className="font-semibold text-gray-900 mb-3">Cliente</h3>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <span className="text-gray-500">RUT:</span>
-            <span className="ml-2 font-mono font-medium">{order.client.rut}</span>
-          </div>
+          {order.client.rut && (
+            <div>
+              <span className="text-gray-500">RUT:</span>
+              <span className="ml-2 font-mono font-medium">{order.client.rut}</span>
+            </div>
+          )}
+          {order.client.cedula && (
+            <div>
+              <span className="text-gray-500">Cédula:</span>
+              <span className="ml-2 font-mono font-medium">{order.client.cedula}</span>
+            </div>
+          )}
           <div>
             <span className="text-gray-500">Empresa:</span>
             <span className="ml-2">{order.client.name || '—'}</span>

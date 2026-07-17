@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getDistributor } from '@/lib/api';
 import { CartProvider } from '@/context/CartContext';
-import PortalHeader from '@/components/PortalHeader';
 import AccessGate from '@/components/AccessGate';
 
 interface Props {
@@ -21,14 +20,11 @@ export default async function SlugLayout({ children, params }: Props) {
 
   return (
     <CartProvider slug={slug}>
-      <div className="min-h-screen bg-gray-50">
-        <PortalHeader distributor={distributor} slug={slug} />
-        <main className="max-w-6xl mx-auto px-4 py-6">
-          <AccessGate slug={slug} distributorName={distributor.name}>
-            {children}
-          </AccessGate>
-        </main>
-      </div>
+      {/* AccessGate controla el header: mientras no se verificó RUT/Cédula + código,
+          no se debe ver "Mis Pedidos" ni "Carrito" (todavía no hay ningún cliente logueado). */}
+      <AccessGate slug={slug} distributor={distributor}>
+        {children}
+      </AccessGate>
     </CartProvider>
   );
 }

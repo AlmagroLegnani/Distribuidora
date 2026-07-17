@@ -17,34 +17,33 @@ async function main(): Promise<void> {
     },
   });
 
-  // Create commercial plans
+  // Plan único: no hay distintos niveles/tiers, todas las distribuidoras pagan
+  // lo mismo por mes (con 3 meses de prueba gratuita al principio).
   const basicPlan = await prisma.plan.upsert({
-    where: { slug: 'basico' },
+    where: { slug: 'unico' },
     update: {},
     create: {
-      name: 'Básico',
-      slug: 'basico',
+      name: 'Plan StockApp',
+      slug: 'unico',
       price: 19990,
-      currency: 'CLP',
-      maxProducts: 100,
-      maxClients: 200,
-      maxOrdersMonth: 300,
-    },
-  });
-
-  await prisma.plan.upsert({
-    where: { slug: 'pro' },
-    update: {},
-    create: {
-      name: 'Pro',
-      slug: 'pro',
-      price: 39990,
-      currency: 'CLP',
+      currency: 'UYU',
       maxProducts: null,
       maxClients: null,
       maxOrdersMonth: null,
     },
   });
+
+  // Limpieza: de cuando existían varios planes/niveles (Básico, Pro, "Plan
+  // mensual", etc.) pueden haber quedado distribuidoras reales con su
+  // Subscription apuntando a esos planes viejos, aunque ya no aparezcan en
+  // pantalla. Como ahora es un solo plan para todos, movemos TODAS las
+  // suscripciones al plan único y borramos cualquier otro plan que haya
+  // quedado dando vueltas (ya sin nada enganchado, así que el delete no falla).
+  await prisma.subscription.updateMany({
+    where: { planId: { not: basicPlan.id } },
+    data: { planId: basicPlan.id },
+  });
+  await prisma.plan.deleteMany({ where: { id: { not: basicPlan.id } } });
 
   // Create demo distributor
   const hashedPassword = await bcrypt.hash('demo1234', 10);
@@ -56,7 +55,7 @@ async function main(): Promise<void> {
       name: 'Distribuidora Norte',
       email: 'demo@stockapp.com',
       password: hashedPassword,
-      phone: '+56912345678',
+      phone: '+598 2900 1234',
       slug: 'demo',
       categories: ['Alimentos No Perecederos', 'Lácteos y Fríos', 'Limpieza e Higiene'],
       settings: {
@@ -110,42 +109,70 @@ async function main(): Promise<void> {
 
  
 
-  // Create 3 sample clients (the first two already have an access code, as if it
-  // had been generated and emailed to them from the admin panel)
-  const clientsData = [
+  // Create 4 sample clients (three with RUT, one with only Cédula — small
+  // almacenes often don't have one). The first two and the last already have
+  // an access code, as if it had been generated and emailed from the admin panel.
+  const clientsData: Array<{
+    rut: string | null;
+    cedula: string | null;
+    name: string;
+    email: string | null;
+    phone: string;
+    accessCode: string | null;
+    accessCodeSentAt: Date | null;
+  }> = [
     {
-      rut: '76543210-1',
+      rut: '211234560019',
+      cedula: null,
       name: 'Supermercado El Sol',
-      email: 'compras@elsol.cl',
-      phone: '+56922334455',
+      email: 'compras@elsol.com.uy',
+      phone: '+598 99 223 344',
       accessCode: 'SOL2026A',
       accessCodeSentAt: new Date(),
     },
     {
-      rut: '12345678-9',
+      rut: '211234560027',
+      cedula: null,
       name: 'Minimarket Don Pepe',
-      email: 'donpepe@email.cl',
-      phone: '+56933445566',
+      email: 'donpepe@email.com',
+      phone: '+598 99 334 455',
       accessCode: 'PEPE2026',
       accessCodeSentAt: new Date(),
     },
     {
-      rut: '98765432-1',
+      rut: '211234560035',
+      cedula: null,
       name: 'Almacén La Esquina',
       email: null,
-      phone: '+56911223344',
+      phone: '+598 99 112 233',
       accessCode: null,
       accessCodeSentAt: null,
+    },
+    {
+      rut: null,
+      cedula: '12345672',
+      name: 'Almacén Doña Rosa',
+      email: 'donarosa@email.com',
+      phone: '+598 99 556 677',
+      accessCode: 'ROSA2026',
+      accessCodeSentAt: new Date(),
     },
   ];
 
   const clients = [];
   for (const c of clientsData) {
-    const client = await prisma.client.upsert({
-      where: { distributorId_rut: { distributorId: distributor.id, rut: c.rut } },
-      update: c,
-      create: { distributorId: distributor.id, ...c },
+    const existing = await prisma.client.findFirst({
+      where: {
+        distributorId: distributor.id,
+        OR: [
+          ...(c.rut ? [{ rut: c.rut }] : []),
+          ...(c.cedula ? [{ cedula: c.cedula }] : []),
+        ],
+      },
     });
+    const client = existing
+      ? await prisma.client.update({ where: { id: existing.id }, data: c })
+      : await prisma.client.create({ data: { distributorId: distributor.id, ...c } });
     clients.push(client);
   }
 
@@ -201,6 +228,13 @@ async function main(): Promise<void> {
       notes: 'Cancelado por cliente',
       items: [{ product: products[1], quantity: 3 }],
     },
+    {
+      // Doña Rosa — the client identified by Cédula instead of RUT.
+      clientIdx: 3,
+      status: 'PENDING' as const,
+      notes: null,
+      items: [{ product: products[2], quantity: 4 }],
+    },
   ];
 
   for (const orderData of ordersData) {
@@ -229,8 +263,12 @@ async function main(): Promise<void> {
 }
 
 main()
+  .then(() => {
+    console.log('Seed completado correctamente.');
+  })
   .catch((e) => {
-   
+    console.error('Error al correr el seed:', e);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();

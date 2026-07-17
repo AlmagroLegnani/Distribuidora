@@ -23,8 +23,8 @@ router.post(
 // GET /api/public/:slug/products  — public product catalog
 router.get('/:slug/products', publicController.getPublicProducts);
 
-// GET /api/public/:slug/client/:rut  — lookup client by RUT (requires ?code=, brute-force protected)
-router.get('/:slug/client/:rut', authLimiter, publicController.getClientByRut);
+// GET /api/public/:slug/client/:documento  — lookup client by RUT or Cédula (requires ?code=, brute-force protected)
+router.get('/:slug/client/:documento', authLimiter, publicController.getClientByDocumento);
 
 // GET /api/public/:slug/orders  — client's own order history (requires rut + code)
 router.get('/:slug/orders', authLimiter, publicController.getClientOrders);

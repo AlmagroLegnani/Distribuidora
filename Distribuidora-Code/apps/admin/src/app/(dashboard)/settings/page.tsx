@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 
 interface Settings {
@@ -40,6 +41,9 @@ interface PasswordForm {
 }
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
+  const paymentResult = searchParams.get('payment'); // success | pending | failed, seteado al volver de MercadoPago
+
   const [settings, setSettings] = useState<SettingsForm>({
     notificationEmail: '',
     whatsappNumber: '',
@@ -138,6 +142,17 @@ export default function SettingsPage() {
     }
   }
 
+  function daysUntil(dateStr: string | null): number | null {
+    if (!dateStr) return null;
+    const diffMs = new Date(dateStr).getTime() - Date.now();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  }
+
+  const trialDaysLeft =
+    subscription?.status === 'TRIALING' ? daysUntil(subscription.trialEndsAt) : null;
+  const showTrialWarning = trialDaysLeft !== null && trialDaysLeft <= 5;
+  const showPastDueWarning = subscription?.status === 'PAST_DUE';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -150,6 +165,45 @@ export default function SettingsPage() {
     <div className="space-y-6 max-w-2xl">
       <h2 className="text-2xl font-bold text-gray-900">Configuración</h2>
 
+      {paymentResult === 'success' && (
+        <div className="p-4 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
+          ¡Pago recibido! Puede tardar unos segundos en reflejarse acá abajo.
+        </div>
+      )}
+      {paymentResult === 'pending' && (
+        <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          Tu pago está en revisión por MercadoPago. Te avisamos cuando se confirme.
+        </div>
+      )}
+      {paymentResult === 'failed' && (
+        <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+          El pago no se pudo procesar. Podés intentar de nuevo con el botón de abajo.
+        </div>
+      )}
+
+      {showTrialWarning && (
+        <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          {trialDaysLeft! > 0 ? (
+            <>
+              Tu prueba gratuita termina en <strong>{trialDaysLeft} día{trialDaysLeft === 1 ? '' : 's'}</strong>.
+              Contactanos para coordinar el pago mensual según lo acordado y no perder el acceso a tu catálogo.
+            </>
+          ) : (
+            <>
+              Tu prueba gratuita ya terminó. Contactanos a la brevedad para coordinar el pago mensual y
+              evitar que se suspenda el acceso a tu catálogo.
+            </>
+          )}
+        </div>
+      )}
+
+      {showPastDueWarning && (
+        <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+          Tu pago está vencido. Tenés unos días de gracia antes de que se suspenda el acceso a tu catálogo —
+          contactanos o regularizalo para seguir usando la app sin interrupciones.
+        </div>
+      )}
+
       {/* Subscription */}
       {subscription && (
         <div className="card p-6 space-y-4">
@@ -159,7 +213,7 @@ export default function SettingsPage() {
               <div className="text-gray-500">Plan</div>
               <div className="font-medium text-gray-900">
                 {subscription.plan.name} —{' '}
-                {new Intl.NumberFormat('es-CL', {
+                {new Intl.NumberFormat('es-UY', {
                   style: 'currency',
                   currency: subscription.plan.currency,
                   minimumFractionDigits: 0,
@@ -179,7 +233,7 @@ export default function SettingsPage() {
               </div>
               <div className="font-medium text-gray-900">
                 {subscription.currentPeriodEnd || subscription.trialEndsAt
-                  ? new Intl.DateTimeFormat('es-CL', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(
+                  ? new Intl.DateTimeFormat('es-UY', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(
                       new Date(subscription.currentPeriodEnd ?? subscription.trialEndsAt!)
                     )
                   : '—'}
@@ -194,6 +248,9 @@ export default function SettingsPage() {
           <button onClick={handlePayNow} disabled={checkoutLoading} className="btn-primary">
             {checkoutLoading ? 'Generando link...' : 'Pagar / renovar con MercadoPago'}
           </button>
+          <p className="text-xs text-gray-400">
+            También podés coordinar el pago directamente con nosotros según lo acordado en tu contrato.
+          </p>
         </div>
       )}
 
@@ -221,7 +278,7 @@ export default function SettingsPage() {
             type="tel"
             value={settings.whatsappNumber}
             onChange={(e) => setSettings({ ...settings, whatsappNumber: e.target.value })}
-            placeholder="+56912345678"
+            placeholder="+598 99 123 456"
             className="input"
           />
         </div>

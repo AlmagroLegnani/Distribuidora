@@ -17,12 +17,3 @@ export const publicWriteLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' },
 });
-
-/** Distributor self-signup — one prospective tenant shouldn't spam account creation. */
-export const signupLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Demasiados intentos de registro. Intenta de nuevo más tarde.' },
-});

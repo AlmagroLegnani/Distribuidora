@@ -14,17 +14,21 @@ export default function CatalogPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
+  const [brand, setBrand] = useState('');
+  const [brands, setBrands] = useState<string[]>([]);
   const searchTimeout = useRef<NodeJS.Timeout>();
 
   const fetchProducts = useCallback(
-    async (q?: string, cat?: string) => {
+    async (q?: string, cat?: string, br?: string) => {
       setLoading(true);
       try {
-        const data = await getProducts(slug, q, cat);
+        const data = await getProducts(slug, q, cat, br);
         setProducts(data);
-        // Extract categories
+        // Extract categories y marcas disponibles a partir de lo que devolvió el catálogo
         const cats = Array.from(new Set(data.map((p) => p.category).filter(Boolean))) as string[];
         setCategories(cats);
+        const brs = Array.from(new Set(data.map((p) => p.brand).filter(Boolean))) as string[];
+        setBrands(brs);
       } catch (err) {
         console.error(err);
       } finally {
@@ -41,12 +45,17 @@ export default function CatalogPage() {
   function handleSearch(value: string) {
     setSearch(value);
     clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => fetchProducts(value, category), 300);
+    searchTimeout.current = setTimeout(() => fetchProducts(value, category, brand), 300);
   }
 
   function handleCategory(cat: string) {
     setCategory(cat);
-    fetchProducts(search, cat);
+    fetchProducts(search, cat, brand);
+  }
+
+  function handleBrand(br: string) {
+    setBrand(br);
+    fetchProducts(search, category, br);
   }
 
   return (
@@ -71,10 +80,24 @@ export default function CatalogPage() {
             type="text"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Buscar productos por nombre o código..."
+            placeholder="Buscar productos por nombre, código o marca..."
             className="input pl-9"
           />
         </div>
+        {brands.length > 0 && (
+          <select
+            value={brand}
+            onChange={(e) => handleBrand(e.target.value)}
+            className="input sm:w-52"
+          >
+            <option value="">Todas las marcas</option>
+            {brands.map((br) => (
+              <option key={br} value={br}>
+                {br}
+              </option>
+            ))}
+          </select>
+        )}
         {categories.length > 0 && (
           <select
             value={category}

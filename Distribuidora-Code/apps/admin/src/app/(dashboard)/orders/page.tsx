@@ -11,7 +11,7 @@ interface Order {
   status: OrderStatus;
   createdAt: string;
   notes: string | null;
-  client: { rut: string; name: string | null; email: string | null };
+  client: { rut: string | null; cedula: string | null; name: string | null; email: string | null };
   items: Array<{ product: { name: string } }>;
 }
 
@@ -36,7 +36,7 @@ export default function OrdersPage() {
     try {
       const params = new URLSearchParams();
       if (filterStatus) params.set('status', filterStatus);
-      if (filterRut) params.set('rut', filterRut);
+      if (filterRut) params.set('documento', filterRut);
       if (filterFrom) params.set('dateFrom', filterFrom);
       if (filterTo) params.set('dateTo', filterTo);
       const data = await api.get<Order[]>(`/orders?${params.toString()}`);
@@ -79,12 +79,12 @@ export default function OrdersPage() {
             </select>
           </div>
           <div>
-            <label className="label">RUT Cliente</label>
+            <label className="label">RUT o Cédula</label>
             <input
               type="text"
               value={filterRut}
               onChange={(e) => setFilterRut(e.target.value)}
-              placeholder="12.345.678-9"
+              placeholder="21-123456-0019"
               className="input"
             />
           </div>
@@ -138,7 +138,7 @@ export default function OrdersPage() {
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Pedido</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">RUT</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">RUT/Cédula</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Empresa</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Productos</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
@@ -155,7 +155,9 @@ export default function OrdersPage() {
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                       {formatDate(order.createdAt)}
                     </td>
-                    <td className="px-4 py-3 font-mono text-gray-700">{order.client.rut}</td>
+                    <td className="px-4 py-3 font-mono text-gray-700">
+                      {order.client.rut || order.client.cedula}
+                    </td>
                     <td className="px-4 py-3 text-gray-900">{order.client.name || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {order.items.length} ítem(s)

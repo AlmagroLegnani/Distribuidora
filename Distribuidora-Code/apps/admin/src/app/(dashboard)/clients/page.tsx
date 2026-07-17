@@ -6,7 +6,8 @@ import { formatDate, formatCurrency, STATUS_LABELS, STATUS_BADGE, OrderStatus } 
 
 interface Client {
   id: string;
-  rut: string;
+  rut: string | null;
+  cedula: string | null;
   name: string | null;
   email: string | null;
   phone: string | null;
@@ -27,14 +28,24 @@ interface ClientDetail extends Client {
   }>;
 }
 
+interface ClientSpecialPrice {
+  id: string;
+  productId: string;
+  productName: string;
+  productCode: string | null;
+  originalPrice: number;
+  specialPrice: number;
+}
+
 interface NewClientForm {
   rut: string;
+  cedula: string;
   name: string;
   email: string;
   phone: string;
 }
 
-const EMPTY_FORM: NewClientForm = { rut: '', name: '', email: '', phone: '' };
+const EMPTY_FORM: NewClientForm = { rut: '', cedula: '', name: '', email: '', phone: '' };
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -50,6 +61,10 @@ export default function ClientsPage() {
 
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resendMsg, setResendMsg] = useState('');
+
+  const [specialPrices, setSpecialPrices] = useState<ClientSpecialPrice[]>([]);
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const [removingPriceId, setRemovingPriceId] = useState<string | null>(null);
 
   const fetchClients = useCallback(async (q?: string) => {
     setLoading(true);
@@ -70,6 +85,7 @@ export default function ClientsPage() {
 
   async function viewDetail(client: Client) {
     setLoadingDetail(true);
+    setLoadingPrices(true);
     try {
       const detail = await api.get<ClientDetail>(`/clients/${client.id}`);
       setSelected(detail);
@@ -78,10 +94,31 @@ export default function ClientsPage() {
     } finally {
       setLoadingDetail(false);
     }
+    try {
+      const prices = await api.get<ClientSpecialPrice[]>(`/clients/${client.id}/prices`);
+      setSpecialPrices(prices);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingPrices(false);
+    }
+  }
+
+  async function removeSpecialPrice(productId: string) {
+    if (!selected) return;
+    setRemovingPriceId(productId);
+    try {
+      await api.delete(`/clients/${selected.id}/prices/${productId}`);
+      setSpecialPrices((prev) => prev.filter((p) => p.productId !== productId));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al quitar el precio especial');
+    } finally {
+      setRemovingPriceId(null);
+    }
   }
 
   async function deactivate(client: Client) {
-    if (!confirm(`¿Desactivar cliente ${client.rut}?`)) return;
+    if (!confirm(`¿Desactivar cliente ${client.rut || client.cedula}?`)) return;
     try {
       await api.delete(`/clients/${client.id}`);
       fetchClients(search);
@@ -94,10 +131,17 @@ export default function ClientsPage() {
   async function createClient(e: FormEvent) {
     e.preventDefault();
     setFormError('');
+
+    if (!form.rut.trim() && !form.cedula.trim()) {
+      setFormError('Ingresa el RUT o la Cédula del cliente (al menos uno de los dos).');
+      return;
+    }
+
     setCreating(true);
     try {
       await api.post('/clients', {
-        rut: form.rut.trim(),
+        rut: form.rut.trim() || null,
+        cedula: form.cedula.trim() || null,
         name: form.name.trim() || null,
         email: form.email.trim(),
         phone: form.phone.trim() || null,
@@ -150,19 +194,35 @@ export default function ClientsPage() {
         <div className="card p-5 space-y-4">
           <h3 className="font-semibold text-gray-900">Nuevo cliente</h3>
           <p className="text-sm text-gray-500 -mt-2">
-            Se le va a generar y enviar un código de acceso a su email.
+            Ingresa el RUT o la Cédula (al menos uno de los dos). Se le va a generar y enviar un
+            código de acceso a su email.
           </p>
           <form onSubmit={createClient} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="label">RUT *</label>
+              <label className="label">RUT</label>
               <input
                 type="text"
-                required
                 value={form.rut}
                 onChange={(e) => setForm({ ...form, rut: e.target.value })}
-                placeholder="12.345.678-9"
+                placeholder="211234560019"
                 className="input"
               />
+              <p className="text-xs text-gray-400 mt-1">
+                Si el cliente es una empresa con RUT. Con o sin puntos y guion, da igual.
+              </p>
+            </div>
+            <div>
+              <label className="label">Cédula</label>
+              <input
+                type="text"
+                value={form.cedula}
+                onChange={(e) => setForm({ ...form, cedula: e.target.value })}
+                placeholder="12345678"
+                className="input"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Si no tiene RUT (almacenes chicos, etc.). Con o sin puntos y guion, da igual.
+              </p>
             </div>
             <div>
               <label className="label">Nombre de empresa</label>
@@ -181,7 +241,7 @@ export default function ClientsPage() {
                 required
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="contacto@empresa.cl"
+                placeholder="contacto@empresa.uy"
                 className="input"
               />
             </div>
@@ -191,7 +251,7 @@ export default function ClientsPage() {
                 type="tel"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="+56912345678"
+                placeholder="+598 99 123 456"
                 className="input"
               />
             </div>
@@ -232,7 +292,7 @@ export default function ClientsPage() {
             setSearch(e.target.value);
             fetchClients(e.target.value);
           }}
-          placeholder="Buscar por RUT, nombre o email..."
+          placeholder="Buscar por RUT, Cédula, nombre o email..."
           className="input max-w-sm"
         />
       </div>
@@ -258,7 +318,9 @@ export default function ClientsPage() {
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="font-mono text-sm font-semibold">{client.rut}</div>
+                      <div className="font-mono text-sm font-semibold">
+                        {client.rut || client.cedula}
+                      </div>
                       <div className="text-sm text-gray-700 mt-0.5">{client.name || '—'}</div>
                       <div className="text-xs text-gray-400 mt-0.5">{client.email || ''}</div>
                     </div>
@@ -297,10 +359,15 @@ export default function ClientsPage() {
             <div className="space-y-4">
               <div className="card p-4">
                 <h3 className="font-semibold text-gray-900 mb-3">
-                  {selected.name || selected.rut}
+                  {selected.name || selected.rut || selected.cedula}
                 </h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-gray-500">RUT:</span> <span className="font-mono">{selected.rut}</span></div>
+                  {selected.rut && (
+                    <div><span className="text-gray-500">RUT:</span> <span className="font-mono">{selected.rut}</span></div>
+                  )}
+                  {selected.cedula && (
+                    <div><span className="text-gray-500">Cédula:</span> <span className="font-mono">{selected.cedula}</span></div>
+                  )}
                   <div><span className="text-gray-500">Email:</span> {selected.email || '—'}</div>
                   <div><span className="text-gray-500">Teléfono:</span> {selected.phone || '—'}</div>
                   <div><span className="text-gray-500">Desde:</span> {formatDate(selected.createdAt)}</div>
@@ -329,6 +396,50 @@ export default function ClientsPage() {
                     {resendingId === selected.id ? 'Enviando...' : 'Reenviar código'}
                   </button>
                 </div>
+              </div>
+
+              <div className="card overflow-hidden">
+                <div className="p-3 border-b text-sm font-medium text-gray-700">
+                  Precios especiales {!loadingPrices && `(${specialPrices.length})`}
+                </div>
+                {loadingPrices ? (
+                  <div className="flex items-center justify-center h-16">
+                    <div className="animate-spin w-5 h-5 border-4 border-blue-600 border-t-transparent rounded-full" />
+                  </div>
+                ) : specialPrices.length === 0 ? (
+                  <p className="p-4 text-sm text-gray-400">
+                    Este cliente no tiene precios especiales. Se asignan desde el botón &quot;Precio
+                    especial&quot; en Productos.
+                  </p>
+                ) : (
+                  <div className="divide-y">
+                    {specialPrices.map((sp) => (
+                      <div key={sp.id} className="p-3 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">
+                            {sp.productName}
+                          </div>
+                          <div className="text-xs text-gray-400">{sp.productCode}</div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-gray-400 line-through">
+                            {formatCurrency(sp.originalPrice)}
+                          </span>
+                          <span className="text-sm font-semibold text-purple-700">
+                            {formatCurrency(sp.specialPrice)}
+                          </span>
+                          <button
+                            onClick={() => removeSpecialPrice(sp.productId)}
+                            disabled={removingPriceId === sp.productId}
+                            className="text-xs text-red-500 hover:text-red-700"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="card overflow-hidden">

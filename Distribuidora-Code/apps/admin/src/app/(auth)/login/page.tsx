@@ -44,6 +44,11 @@ export default function LoginPage() {
             <p className="text-sm text-gray-500 mt-1">Ingresa a tu panel de gestión</p>
           </div>
 
+          <p className="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
+            ¿Es tu primera vez? Usá el código de acceso único que te enviamos por email en el
+            campo de contraseña.
+          </p>
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {error}
@@ -70,7 +75,7 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between">
                 <label htmlFor="password" className="label">
-                  Contraseña
+                  Contraseña / código de acceso
                 </label>
                 <Link href="/forgot-password" className="text-xs text-blue-600 hover:text-blue-700">
                   ¿Olvidaste tu contraseña?

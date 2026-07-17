@@ -26,4 +26,10 @@ router.post('/:id/resend-code', clientController.resendAccessCode);
 // DELETE /api/clients/:id  (soft deactivate)
 router.delete('/:id', clientController.deactivate);
 
+// GET /api/clients/:id/prices  (precios especiales de este cliente)
+router.get('/:id/prices', clientController.getClientPrices);
+
+// DELETE /api/clients/:id/prices/:productId  (volver al precio de lista)
+router.delete('/:id/prices/:productId', clientController.removeClientPrice);
+
 export default router;

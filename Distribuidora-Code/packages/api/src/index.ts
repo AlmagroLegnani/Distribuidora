@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler';
 import routes from './routes';
+import { cleanupOldSentEmails } from './services/emailCleanupService';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -22,6 +23,7 @@ app.use(
       callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
+    exposedHeaders: ['X-Total-Count', 'X-Client-Email'],
   })
 );
 
@@ -43,5 +45,15 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`[${new Date().toISOString()}] Server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
 });
+
+// Job de limpieza de mails enviados (borra de "Enviados" en Gmail los que ya
+// pasaron 1 hora) — no hay un scheduler real en este stack, así que se corre
+// con un setInterval simple, cada 10 minutos, sin bloquear el arranque.
+const EMAIL_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+setInterval(() => {
+  cleanupOldSentEmails().catch((err) =>
+    console.error(`[${new Date().toISOString()}] [email-cleanup] Error inesperado:`, err)
+  );
+}, EMAIL_CLEANUP_INTERVAL_MS);
 
 export default app;

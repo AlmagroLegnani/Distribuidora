@@ -16,7 +16,7 @@ interface DashboardStats {
     total: number;
     status: OrderStatus;
     createdAt: string;
-    client: { rut: string; name: string | null };
+    client: { rut: string | null; cedula: string | null; name: string | null };
   }>;
 }
 
@@ -124,7 +124,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <div className="text-sm font-medium text-gray-900">
-                    {order.client.name || order.client.rut}
+                    {order.client.name || order.client.rut || order.client.cedula}
                   </div>
                   <div className="text-xs text-gray-500">{formatDate(order.createdAt)}</div>
                 </div>
