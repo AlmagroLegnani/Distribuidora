@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import * as platformService from '../services/platformService';
+import * as contactRequestService from '../services/contactRequestService';
 import type { PlatformAuthRequest } from '../middleware/platformAuth';
 
 export async function login(req: PlatformAuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -136,6 +137,34 @@ export async function updatePlan(
   try {
     const plan = await platformService.updatePlan(req.params.id, req.body);
     res.json(plan);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─── Solicitudes de contacto ─────────────────────────────────────────────────
+
+export async function listContactRequests(
+  _req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const requests = await contactRequestService.list();
+    res.json(requests);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateContactRequestStatus(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const request = await contactRequestService.updateStatus(req.params.id, req.body);
+    res.json(request);
   } catch (err) {
     next(err);
   }

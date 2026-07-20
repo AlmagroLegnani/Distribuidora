@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import * as orderService from '../services/orderService';
 import * as clientService from '../services/clientService';
 import * as clientPriceService from '../services/clientPriceService';
+import * as contactRequestService from '../services/contactRequestService';
 import { sendOrderNotifications } from '../services/notificationService';
 import { AppError } from '../middleware/errorHandler';
 
@@ -157,17 +158,17 @@ export async function getPublicProducts(
     });
 
     // Si el que pide el catálogo es un cliente identificado (ya verificó su
-    // código al entrar), le aplicamos su precio especial donde tenga uno —
+    // código al entrar), le aplicamos su % de descuento donde tenga uno —
     // mostrando el precio de lista original al lado para que sea transparente.
     const client = await clientService.findVerifiedClientSoft(distributor.id, documento, code);
-    const priceMap = client
-      ? await clientPriceService.getClientPriceMap(distributor.id, client.id)
+    const discountMap = client
+      ? await clientPriceService.getClientDiscountMap(distributor.id, client.id)
       : new Map<string, number>();
 
     const productsWithPricing = products.map((p) => {
-      const specialPrice = priceMap.get(p.id);
-      if (specialPrice !== undefined) {
-        return { ...p, originalPrice: p.price, price: specialPrice };
+      const discountPercent = discountMap.get(p.id);
+      if (discountPercent !== undefined) {
+        return { ...p, originalPrice: p.price, price: clientPriceService.applyDiscount(p.price, discountPercent) };
       }
       return { ...p, originalPrice: null };
     });
@@ -253,6 +254,22 @@ export async function createPublicOrder(
     }
 
     res.status(201).json(order);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Botón "Contactate con nosotros" de la home pública — no requiere que quien
+ * escribe ya sea cliente ni distribuidora de nada, por eso vive en el
+ * controlador público. Queda pendiente de gestión en el panel de superadmin. */
+export async function createContactRequest(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const request = await contactRequestService.create(req.body);
+    res.status(201).json({ id: request.id });
   } catch (err) {
     next(err);
   }

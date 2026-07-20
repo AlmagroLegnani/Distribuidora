@@ -1,83 +1,44 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 
-/**
- * Devuelve, para un producto dado, la lista de clientes activos del
- * distribuidor junto con el precio especial que tienen asignado (si tienen
- * alguno) — usado para precargar el panel "Precio especial" con los
- * checkboxes ya marcados.
- */
-export async function getClientPricesForProduct(distributorId: string, productId: string) {
-  const product = await prisma.product.findFirst({
-    where: { id: productId, distributorId },
-  });
-  if (!product) throw new AppError(404, 'Product not found');
-
-  const [clients, existing] = await Promise.all([
-    prisma.client.findMany({
-      where: { distributorId, active: true },
-      select: { id: true, name: true, rut: true, cedula: true, email: true },
-      orderBy: { name: 'asc' },
-    }),
-    prisma.clientPrice.findMany({
-      where: { distributorId, productId },
-      select: { clientId: true, price: true },
-    }),
-  ]);
-
-  const priceByClientId = new Map(existing.map((cp) => [cp.clientId, cp.price]));
-
-  return {
-    productPrice: product.price,
-    clients: clients.map((c) => ({
-      ...c,
-      specialPrice: priceByClientId.get(c.id) ?? null,
-    })),
-  };
+/** Precio final para un cliente con un % de descuento dado, redondeado a 2 decimales. */
+export function applyDiscount(originalPrice: number, discountPercent: number): number {
+  const result = originalPrice * (1 - discountPercent / 100);
+  return Math.round(result * 100) / 100;
 }
 
 /**
- * Aplica un precio especial a los clientes tildados y restaura el precio de
- * lista (borrando cualquier override anterior) a los que quedaron destildados.
+ * Da de alta o actualiza el descuento (%) de un cliente puntual para un
+ * producto puntual. Un mismo producto puede tener un % distinto para cada
+ * cliente — cada carga es independiente, no pisa a los demás clientes.
  */
-export async function setClientPricesForProduct(
+export async function setClientDiscount(
   distributorId: string,
+  clientId: string,
   productId: string,
-  price: number,
-  clientIds: string[]
+  discountPercent: number
 ) {
-  const product = await prisma.product.findFirst({
-    where: { id: productId, distributorId },
-  });
+  const [client, product] = await Promise.all([
+    prisma.client.findFirst({ where: { id: clientId, distributorId } }),
+    prisma.product.findFirst({ where: { id: productId, distributorId } }),
+  ]);
+  if (!client) throw new AppError(404, 'Client not found');
   if (!product) throw new AppError(404, 'Product not found');
 
-  if (clientIds.length > 0 && price <= 0) {
-    throw new AppError(400, 'El precio especial debe ser mayor a 0');
+  if (discountPercent <= 0 || discountPercent >= 100) {
+    throw new AppError(400, 'El descuento debe ser un porcentaje entre 0 y 100 (sin incluir).');
   }
 
-  await prisma.$transaction([
-    // Sacar el precio especial a los clientes que quedaron sin tildar.
-    prisma.clientPrice.deleteMany({
-      where: {
-        distributorId,
-        productId,
-        clientId: { notIn: clientIds.length > 0 ? clientIds : ['__none__'] },
-      },
-    }),
-    // Crear/actualizar el precio especial de los clientes tildados.
-    ...clientIds.map((clientId) =>
-      prisma.clientPrice.upsert({
-        where: { clientId_productId: { clientId, productId } },
-        update: { price },
-        create: { distributorId, clientId, productId, price },
-      })
-    ),
-  ]);
+  return prisma.clientPrice.upsert({
+    where: { clientId_productId: { clientId, productId } },
+    update: { discountPercent },
+    create: { distributorId, clientId, productId, discountPercent },
+  });
 }
 
 /**
- * Lista de precios especiales de un cliente puntual, con el precio de lista
- * al lado — para la pestaña "Precios especiales" en la ficha del cliente.
+ * Lista de descuentos de un cliente puntual, con el precio de lista y el
+ * precio final ya calculado al lado — para la ficha del cliente.
  */
 export async function getClientPrices(distributorId: string, clientId: string) {
   const client = await prisma.client.findFirst({ where: { id: clientId, distributorId } });
@@ -97,7 +58,8 @@ export async function getClientPrices(distributorId: string, clientId: string) {
       productName: cp.product.name,
       productCode: cp.product.code,
       originalPrice: cp.product.price,
-      specialPrice: cp.price,
+      discountPercent: cp.discountPercent,
+      specialPrice: applyDiscount(cp.product.price, cp.discountPercent),
     }));
 }
 
@@ -106,16 +68,16 @@ export async function removeClientPrice(distributorId: string, clientId: string,
 }
 
 /**
- * Mapa productId -> precio especial para un cliente puntual, usado al armar
+ * Mapa productId -> % de descuento para un cliente puntual, usado al armar
  * el catálogo público y al crear un pedido (para cobrar el precio correcto).
  */
-export async function getClientPriceMap(
+export async function getClientDiscountMap(
   distributorId: string,
   clientId: string
 ): Promise<Map<string, number>> {
   const prices = await prisma.clientPrice.findMany({
     where: { distributorId, clientId },
-    select: { productId: true, price: true },
+    select: { productId: true, discountPercent: true },
   });
-  return new Map(prices.map((p) => [p.productId, p.price]));
+  return new Map(prices.map((p) => [p.productId, p.discountPercent]));
 }

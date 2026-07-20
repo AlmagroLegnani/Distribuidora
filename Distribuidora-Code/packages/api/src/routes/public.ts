@@ -2,7 +2,11 @@ import { Router } from 'express';
 import * as publicController from '../controllers/publicController';
 import { validate } from '../middleware/validate';
 import { publicWriteLimiter, authLimiter } from '../middleware/rateLimit';
-import { createPublicOrderSchema, verifyAccessCodeSchema } from '../validations/schemas';
+import {
+  createPublicOrderSchema,
+  verifyAccessCodeSchema,
+  createContactRequestSchema,
+} from '../validations/schemas';
 
 const router = Router();
 
@@ -35,6 +39,14 @@ router.post(
   publicWriteLimiter,
   validate(createPublicOrderSchema),
   publicController.createPublicOrder
+);
+
+// POST /api/public/contact-requests  — botón "Contactate con nosotros" (home)
+router.post(
+  '/contact-requests',
+  publicWriteLimiter,
+  validate(createContactRequestSchema),
+  publicController.createContactRequest
 );
 
 export default router;

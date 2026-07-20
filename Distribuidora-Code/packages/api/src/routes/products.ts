@@ -2,12 +2,7 @@ import { Router } from 'express';
 import * as productController from '../controllers/productController';
 import { authMiddleware } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import {
-  createProductSchema,
-  updateProductSchema,
-  updateStockSchema,
-  setClientPricesSchema,
-} from '../validations/schemas';
+import { createProductSchema, updateProductSchema, updateStockSchema } from '../validations/schemas';
 
 const router = Router();
 
@@ -37,15 +32,5 @@ router.delete('/:id', productController.remove);
 
 // PATCH /api/products/:id/stock
 router.patch('/:id/stock', validate(updateStockSchema), productController.updateStock);
-
-// GET /api/products/:id/client-prices
-router.get('/:id/client-prices', productController.getClientPrices);
-
-// PUT /api/products/:id/client-prices
-router.put(
-  '/:id/client-prices',
-  validate(setClientPricesSchema),
-  productController.setClientPrices
-);
 
 export default router;

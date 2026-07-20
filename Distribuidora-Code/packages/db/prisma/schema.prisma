@@ -193,22 +193,24 @@ model Client {
   @@unique([distributorId, cedula])
 }
 
-// Precio especial que un distribuidor le da a un cliente puntual para un
+// Descuento especial que un distribuidor le da a un cliente puntual para un
 // producto puntual (ej: un cliente que compra mucho de un producto recibe un
 // descuento). Si no hay fila acá, el cliente paga el precio de lista normal
-// (Product.price). Se gestiona desde el botón "Precio especial" en Productos,
-// o desde la ficha del cliente.
+// (Product.price). Se guarda como porcentaje (no precio fijo) para que si el
+// precio de lista cambia, el descuento se siga aplicando sobre el precio
+// nuevo. Se gestiona desde la ficha del cliente ("+ Agregar descuento") — así
+// un mismo producto puede tener un % distinto para cada cliente, sin pisarse.
 model ClientPrice {
-  id            String      @id @default(cuid())
-  distributorId String
-  distributor   Distributor @relation(fields: [distributorId], references: [id])
-  clientId      String
-  client        Client      @relation(fields: [clientId], references: [id])
-  productId     String
-  product       Product     @relation(fields: [productId], references: [id])
-  price         Float
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id              String      @id @default(cuid())
+  distributorId   String
+  distributor     Distributor @relation(fields: [distributorId], references: [id])
+  clientId        String
+  client          Client      @relation(fields: [clientId], references: [id])
+  productId       String
+  product         Product     @relation(fields: [productId], references: [id])
+  discountPercent Float
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@unique([clientId, productId])
   @@index([distributorId, productId])
@@ -261,4 +263,27 @@ enum OrderStatus {
   PROCESSING
   COMPLETED
   CANCELLED
+}
+
+enum ContactRequestStatus {
+  NEW
+  CONTACTED
+  DISCARDED
+}
+
+// Solicitud de contacto de un potencial cliente (distribuidora) que todavía
+// no tiene cuenta. Se genera desde el botón "Contactate con nosotros" en la
+// home pública (apps/web) y aparece en el panel de superadmin, sección
+// "Solicitudes", para que el equipo comercial la gestione manualmente y dé
+// de alta a la distribuidora si corresponde.
+model ContactRequest {
+  id        String               @id @default(cuid())
+  name      String?
+  email     String
+  phone     String
+  status    ContactRequestStatus @default(NEW)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([status, createdAt])
 }

@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { classifyDocument } from '../lib/document';
 import { checkLowStock } from './stockAlertService';
+import { applyDiscount } from './clientPriceService';
 import type { PaginationParams } from '../lib/pagination';
 import type { CreatePublicOrderInput } from '../validations/schemas';
 
@@ -155,13 +156,14 @@ export async function createOrder(
       }
     }
 
-    // 1.5. Precios especiales que este cliente pueda tener asignados —
-    // si el producto pedido tiene uno, se cobra ese en lugar del de lista.
+    // 1.5. Descuentos que este cliente pueda tener asignados — si el
+    // producto pedido tiene uno, se cobra el precio de lista con ese % de
+    // descuento aplicado en lugar del precio de lista solo.
     const clientPrices = await tx.clientPrice.findMany({
       where: { distributorId, clientId: client.id },
-      select: { productId: true, price: true },
+      select: { productId: true, discountPercent: true },
     });
-    const specialPriceByProductId = new Map(clientPrices.map((cp) => [cp.productId, cp.price]));
+    const discountByProductId = new Map(clientPrices.map((cp) => [cp.productId, cp.discountPercent]));
 
     // 2. Validate stock and build order items
     let total = 0;
@@ -188,7 +190,9 @@ export async function createOrder(
         );
       }
 
-      const unitPrice = specialPriceByProductId.get(product.id) ?? product.price;
+      const discountPercent = discountByProductId.get(product.id);
+      const unitPrice =
+        discountPercent !== undefined ? applyDiscount(product.price, discountPercent) : product.price;
       const subtotal = unitPrice * item.quantity;
       total += subtotal;
       orderItemsData.push({

@@ -100,7 +100,26 @@ export async function removeClientPrice(
       req.params.id,
       req.params.productId
     );
-    res.json({ message: 'Precio especial eliminado' });
+    res.json({ message: 'Descuento eliminado' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function setClientPrice(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { productId, discountPercent } = req.body as { productId: string; discountPercent: number };
+    const result = await clientPriceService.setClientDiscount(
+      req.distributorId!,
+      req.params.id,
+      productId,
+      discountPercent
+    );
+    res.json(result);
   } catch (err) {
     next(err);
   }

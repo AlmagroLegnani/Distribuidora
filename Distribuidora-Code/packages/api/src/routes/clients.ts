@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as clientController from '../controllers/clientController';
 import { authMiddleware } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { createClientSchema, updateClientSchema } from '../validations/schemas';
+import { createClientSchema, updateClientSchema, setClientDiscountSchema } from '../validations/schemas';
 
 const router = Router();
 
@@ -26,8 +26,11 @@ router.post('/:id/resend-code', clientController.resendAccessCode);
 // DELETE /api/clients/:id  (soft deactivate)
 router.delete('/:id', clientController.deactivate);
 
-// GET /api/clients/:id/prices  (precios especiales de este cliente)
+// GET /api/clients/:id/prices  (descuentos de este cliente)
 router.get('/:id/prices', clientController.getClientPrices);
+
+// PUT /api/clients/:id/prices  (dar de alta o editar un descuento: productId + discountPercent)
+router.put('/:id/prices', validate(setClientDiscountSchema), clientController.setClientPrice);
 
 // DELETE /api/clients/:id/prices/:productId  (volver al precio de lista)
 router.delete('/:id/prices/:productId', clientController.removeClientPrice);

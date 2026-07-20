@@ -60,10 +60,15 @@ export default function HomePage() {
           </a>
         </div>
 
-        <p className="text-center text-sm text-gray-500 mt-8">
-          ¿Todavía no te dimos de alta? Escribinos y te registramos como distribuidora: vas a
-          recibir por email un código de acceso único para ingresar a tu backoffice.
-        </p>
+        <div className="text-center mt-8">
+          <p className="text-sm text-gray-500">
+            ¿Todavía no te dimos de alta? Escribinos y te registramos como distribuidora: vas a
+            recibir por email un código de acceso único para ingresar a tu backoffice.
+          </p>
+          <Link href="/contacto" className="btn-primary inline-flex mt-4">
+            Contactate con nosotros
+          </Link>
+        </div>
       </div>
     </div>
   );

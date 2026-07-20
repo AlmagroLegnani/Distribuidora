@@ -9,6 +9,7 @@ import {
   updatePlanSchema,
   markPaidSchema,
   createDistributorSchema,
+  updateContactRequestStatusSchema,
 } from '../validations/schemas';
 
 const router = Router();
@@ -76,6 +77,17 @@ router.put(
   platformAuthMiddleware,
   validate(updatePlanSchema),
   platformController.updatePlan
+);
+
+// GET /api/platform/contact-requests
+router.get('/contact-requests', platformAuthMiddleware, platformController.listContactRequests);
+
+// PATCH /api/platform/contact-requests/:id/status
+router.patch(
+  '/contact-requests/:id/status',
+  platformAuthMiddleware,
+  validate(updateContactRequestStatusSchema),
+  platformController.updateContactRequestStatus
 );
 
 export default router;

@@ -1,6 +1,5 @@
 import { Response, NextFunction } from 'express';
 import * as productService from '../services/productService';
-import * as clientPriceService from '../services/clientPriceService';
 import { AuthRequest } from '../middleware/auth';
 import { parsePagination } from '../lib/pagination';
 
@@ -95,41 +94,6 @@ export async function brands(req: AuthRequest, res: Response, next: NextFunction
   try {
     const result = await productService.listBrands(req.distributorId!);
     res.json(result);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function getClientPrices(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const result = await clientPriceService.getClientPricesForProduct(
-      req.distributorId!,
-      req.params.id
-    );
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function setClientPrices(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { price, clientIds } = req.body as { price: number; clientIds: string[] };
-    await clientPriceService.setClientPricesForProduct(
-      req.distributorId!,
-      req.params.id,
-      price,
-      clientIds
-    );
-    res.json({ message: 'Precios especiales actualizados' });
   } catch (err) {
     next(err);
   }
