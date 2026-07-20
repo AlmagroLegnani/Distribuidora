@@ -34,7 +34,15 @@ interface ClientSpecialPrice {
   productName: string;
   productCode: string | null;
   originalPrice: number;
+  discountPercent: number;
   specialPrice: number;
+}
+
+interface ProductOption {
+  id: string;
+  name: string;
+  code: string | null;
+  price: number;
 }
 
 interface NewClientForm {
@@ -66,6 +74,13 @@ export default function ClientsPage() {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [removingPriceId, setRemovingPriceId] = useState<string | null>(null);
 
+  const [products, setProducts] = useState<ProductOption[]>([]);
+  const [showAddDiscount, setShowAddDiscount] = useState(false);
+  const [discountProductId, setDiscountProductId] = useState('');
+  const [discountPercent, setDiscountPercent] = useState('');
+  const [discountSaving, setDiscountSaving] = useState(false);
+  const [discountError, setDiscountError] = useState('');
+
   const fetchClients = useCallback(async (q?: string) => {
     setLoading(true);
     try {
@@ -83,9 +98,17 @@ export default function ClientsPage() {
     fetchClients();
   }, [fetchClients]);
 
+  useEffect(() => {
+    api
+      .get<ProductOption[]>('/products')
+      .then(setProducts)
+      .catch((err) => console.error(err));
+  }, []);
+
   async function viewDetail(client: Client) {
     setLoadingDetail(true);
     setLoadingPrices(true);
+    setShowAddDiscount(false);
     try {
       const detail = await api.get<ClientDetail>(`/clients/${client.id}`);
       setSelected(detail);
@@ -114,6 +137,41 @@ export default function ClientsPage() {
       alert(err instanceof Error ? err.message : 'Error al quitar el precio especial');
     } finally {
       setRemovingPriceId(null);
+    }
+  }
+
+  function openAddDiscount() {
+    setDiscountProductId('');
+    setDiscountPercent('');
+    setDiscountError('');
+    setShowAddDiscount(true);
+  }
+
+  async function saveDiscount() {
+    if (!selected) return;
+    const pct = parseFloat(discountPercent);
+    if (!discountProductId) {
+      setDiscountError('Elegí un producto.');
+      return;
+    }
+    if (isNaN(pct) || pct <= 0 || pct >= 100) {
+      setDiscountError('El descuento debe ser un porcentaje entre 0 y 100 (ej: 5 para 5%).');
+      return;
+    }
+    setDiscountSaving(true);
+    setDiscountError('');
+    try {
+      await api.put(`/clients/${selected.id}/prices`, {
+        productId: discountProductId,
+        discountPercent: pct,
+      });
+      const prices = await api.get<ClientSpecialPrice[]>(`/clients/${selected.id}/prices`);
+      setSpecialPrices(prices);
+      setShowAddDiscount(false);
+    } catch (err) {
+      setDiscountError(err instanceof Error ? err.message : 'Error al guardar el descuento');
+    } finally {
+      setDiscountSaving(false);
     }
   }
 
@@ -399,17 +457,70 @@ export default function ClientsPage() {
               </div>
 
               <div className="card overflow-hidden">
-                <div className="p-3 border-b text-sm font-medium text-gray-700">
-                  Precios especiales {!loadingPrices && `(${specialPrices.length})`}
+                <div className="p-3 border-b flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    Precios especiales {!loadingPrices && `(${specialPrices.length})`}
+                  </span>
+                  <button onClick={openAddDiscount} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                    + Agregar descuento
+                  </button>
                 </div>
+
+                {showAddDiscount && (
+                  <div className="p-3 border-b bg-gray-50 space-y-2">
+                    {discountError && (
+                      <div className="text-xs p-2 rounded bg-red-50 text-red-700">{discountError}</div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <select
+                        value={discountProductId}
+                        onChange={(e) => setDiscountProductId(e.target.value)}
+                        className="input text-sm"
+                      >
+                        <option value="">Elegí un producto...</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.code ? `(${p.code})` : ''} — {formatCurrency(p.price)}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min={0.01}
+                        max={99.99}
+                        step={0.1}
+                        value={discountPercent}
+                        onChange={(e) => setDiscountPercent(e.target.value)}
+                        placeholder="% de descuento, ej: 5"
+                        className="input text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveDiscount}
+                        disabled={discountSaving}
+                        className="btn-primary text-xs"
+                      >
+                        {discountSaving ? 'Guardando...' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => setShowAddDiscount(false)}
+                        className="btn-secondary text-xs"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {loadingPrices ? (
                   <div className="flex items-center justify-center h-16">
                     <div className="animate-spin w-5 h-5 border-4 border-blue-600 border-t-transparent rounded-full" />
                   </div>
                 ) : specialPrices.length === 0 ? (
                   <p className="p-4 text-sm text-gray-400">
-                    Este cliente no tiene precios especiales. Se asignan desde el botón &quot;Precio
-                    especial&quot; en Productos.
+                    Este cliente no tiene descuentos. Usá &quot;+ Agregar descuento&quot; para darle un %
+                    especial en algún producto.
                   </p>
                 ) : (
                   <div className="divide-y">
@@ -422,6 +533,9 @@ export default function ClientsPage() {
                           <div className="text-xs text-gray-400">{sp.productCode}</div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded-full">
+                            -{sp.discountPercent}%
+                          </span>
                           <span className="text-xs text-gray-400 line-through">
                             {formatCurrency(sp.originalPrice)}
                           </span>

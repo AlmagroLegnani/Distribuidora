@@ -26,12 +26,11 @@ export const updateStockSchema = z.object({
   stock: z.number().int().min(0, 'Stock cannot be negative'),
 });
 
-export const setClientPricesSchema = z.object({
-  // Puede venir en 0 cuando clientIds está vacío (o sea: "sacar todos los
-  // precios especiales de este producto") — la validación de que sea > 0
-  // cuando sí hay clientes tildados se hace en el servicio.
-  price: z.number().min(0),
-  clientIds: z.array(z.string().cuid()),
+export const setClientDiscountSchema = z.object({
+  productId: z.string().cuid('Invalid product ID'),
+  // Porcentaje de descuento (ej. 5 = 5% menos). La validación de rango
+  // (entre 0 y 100, sin incluir) se hace en el servicio.
+  discountPercent: z.number(),
 });
 
 // ─── Client ───────────────────────────────────────────────────────────────
@@ -120,6 +119,17 @@ export const createDistributorSchema = z.object({
   planId: z.string().cuid('Invalid plan ID'),
 });
 
+// ─── Solicitudes de contacto (potenciales distribuidoras) ────────────────────
+export const createContactRequestSchema = z.object({
+  name: z.string().max(200).optional().nullable(),
+  email: z.string().email('Email inválido'),
+  phone: z.string().min(1, 'El teléfono es obligatorio').max(20),
+});
+
+export const updateContactRequestStatusSchema = z.object({
+  status: z.enum(['NEW', 'CONTACTED', 'DISCARDED']),
+});
+
 // ─── Password reset ──────────────────────────────────────────────────────────
 export const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -172,6 +182,8 @@ export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 export type MarkPaidInput = z.infer<typeof markPaidSchema>;
 export type CreateDistributorInput = z.infer<typeof createDistributorSchema>;
+export type CreateContactRequestInput = z.infer<typeof createContactRequestSchema>;
+export type UpdateContactRequestStatusInput = z.infer<typeof updateContactRequestStatusSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

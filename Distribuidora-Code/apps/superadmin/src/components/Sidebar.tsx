@@ -6,6 +6,7 @@ import { logout } from '@/lib/auth';
 
 const navItems = [
   { href: '/', label: 'Distribuidoras' },
+  { href: '/contact-requests', label: 'Solicitudes' },
   { href: '/plans', label: 'Plan' },
 ];
 

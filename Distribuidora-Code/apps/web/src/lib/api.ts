@@ -154,6 +154,17 @@ export async function getClientByDocumento(
   );
 }
 
+export async function createContactRequest(payload: {
+  name?: string;
+  email: string;
+  phone: string;
+}): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`/public/contact-requests`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function createOrder(
   slug: string,
   payload: {
