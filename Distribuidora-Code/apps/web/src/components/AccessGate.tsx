@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, FormEvent } from 'react';
+import Link from 'next/link';
 import { verifyAccessCode, Distributor } from '@/lib/api';
 import { loadAccess, saveAccess } from '@/lib/access';
 import PortalHeader from './PortalHeader';
@@ -75,6 +76,15 @@ export default function AccessGate({ slug, distributor, children }: Props) {
       <PortalHeaderMinimal distributor={distributor} slug={slug} />
       <main className="max-w-6xl mx-auto px-4 py-6">
         <div className="max-w-sm mx-auto py-12">
+          <Link
+            href="/distribuidoras"
+            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Volver a distribuidoras
+          </Link>
           <div className="card p-6 space-y-4">
             <div className="text-center">
               <h2 className="text-lg font-bold text-gray-900">Acceso a {distributorName}</h2>
