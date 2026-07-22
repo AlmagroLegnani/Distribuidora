@@ -8,7 +8,7 @@ export default function DistribuidorasPage() {
   const [distributors, setDistributors] = useState<DistributorListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     getDistributors()
@@ -17,9 +17,8 @@ export default function DistribuidorasPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const categories = Array.from(new Set(distributors.flatMap((d) => d.categories))).sort();
-  const visibleDistributors = activeCategory
-    ? distributors.filter((d) => d.categories.includes(activeCategory))
+  const visibleDistributors = search.trim()
+    ? distributors.filter((d) => d.name.toLowerCase().includes(search.trim().toLowerCase()))
     : distributors;
 
   return (
@@ -35,31 +34,29 @@ export default function DistribuidorasPage() {
           </p>
         </div>
 
-        {!loading && !error && distributors.length > 0 && categories.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-2 mb-6">
-            <button
-              onClick={() => setActiveCategory(null)}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                activeCategory === null
-                  ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'border-gray-200 text-gray-600 hover:border-blue-300'
-              }`}
+        {!loading && !error && distributors.length > 0 && (
+          <div className="relative max-w-sm mx-auto mb-8">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              Todos los rubros
-            </button>
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setActiveCategory(category)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                  activeCategory === category
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'border-gray-200 text-gray-600 hover:border-blue-300'
-                }`}
-              >
-                {category}
-              </button>
-            ))}
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar distribuidora por nombre..."
+              className="input pl-9"
+              autoFocus
+            />
           </div>
         )}
 
@@ -75,7 +72,7 @@ export default function DistribuidorasPage() {
           </div>
         ) : visibleDistributors.length === 0 ? (
           <div className="text-center text-sm text-gray-500">
-            No hay distribuidoras en este rubro todavía.
+            No encontramos ninguna distribuidora con ese nombre.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

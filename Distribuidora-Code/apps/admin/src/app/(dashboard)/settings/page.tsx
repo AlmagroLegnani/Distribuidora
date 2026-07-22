@@ -272,17 +272,6 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        <div>
-          <label className="label">Número de WhatsApp (con código de país)</label>
-          <input
-            type="tel"
-            value={settings.whatsappNumber}
-            onChange={(e) => setSettings({ ...settings, whatsappNumber: e.target.value })}
-            placeholder="+598 99 123 456"
-            className="input"
-          />
-        </div>
-
         <div className="space-y-3">
           <label className="flex items-center gap-3 cursor-pointer">
             <input
@@ -297,23 +286,6 @@ export default function SettingsPage() {
               </div>
               <div className="text-xs text-gray-500">
                 Se enviará al email del cliente si está registrado
-              </div>
-            </div>
-          </label>
-
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={settings.sendWhatsapp}
-              onChange={(e) => setSettings({ ...settings, sendWhatsapp: e.target.checked })}
-              className="w-4 h-4 text-blue-600 rounded"
-            />
-            <div>
-              <div className="text-sm font-medium text-gray-900">
-                Enviar notificación por WhatsApp
-              </div>
-              <div className="text-xs text-gray-500">
-                Requiere configuración de Twilio en el servidor
               </div>
             </div>
           </label>
