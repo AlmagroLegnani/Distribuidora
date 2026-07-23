@@ -1,8 +1,15 @@
 import { loadAccess } from './access';
 
+// En el navegador usamos ruta relativa: Next.js la reenvía al backend interno
+// vía rewrites (ver next.config.js), sin necesidad de conocer la URL real de
+// la API. Pero este módulo también se usa desde Server Components (ej.
+// [slug]/layout.tsx) — ahí el fetch corre en el servidor de Next, donde una
+// URL relativa no se puede resolver (no hay "mismo origen" implícito), así
+// que en ese caso pegamos directo a la API interna, sin pasar por el rewrite.
 const API_URL =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) ||
-  'http://localhost:3001/api';
+  typeof window === 'undefined'
+    ? `${process.env.INTERNAL_API_URL || 'http://localhost:3001'}/api`
+    : '/api';
 
 export interface Distributor {
   id: string;

@@ -107,6 +107,25 @@ export const markPaidSchema = z.object({
 // desde el panel de superadmin. El sistema genera un código de acceso único y
 // se lo envía por email — ese código funciona como su contraseña inicial (ver
 // platformService.createDistributor).
+//
+// Rutas top-level reservadas por la app unificada (apps/web) — un slug igual
+// a cualquiera de estas rompería el routing, ya sea porque Next.js resuelve
+// esa ruta estática antes que /[slug], o porque un rewrite intercepta el
+// pedido antes de llegar al router (api, health).
+const RESERVED_SLUGS = [
+  'admin',
+  'platform',
+  'platform-login',
+  'login',
+  'forgot-password',
+  'reset-password',
+  'distribuidoras',
+  'contacto',
+  'signup',
+  'api',
+  'health',
+];
+
 export const createDistributorSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   email: z.string().email('Invalid email format'),
@@ -114,7 +133,10 @@ export const createDistributorSchema = z.object({
     .string()
     .min(3, 'Slug must be at least 3 characters')
     .max(50)
-    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers and dashes'),
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers and dashes')
+    .refine((slug) => !RESERVED_SLUGS.includes(slug), {
+      message: 'Ese identificador de URL está reservado por el sistema, elegí otro',
+    }),
   phone: z.string().min(1, 'El teléfono es obligatorio').max(20),
   planId: z.string().cuid('Invalid plan ID'),
 });
