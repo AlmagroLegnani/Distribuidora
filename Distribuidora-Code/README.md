@@ -7,16 +7,23 @@ Plataforma SaaS de gestión de stock y pedidos con arquitectura multi-tenant.
 ```
 /
 ├── apps/
-│   ├── web/          → Next.js 14 — Portal del cliente final + signup público (puerto 3000)
-│   ├── admin/        → Next.js 14 — Backoffice del distribuidor (puerto 3002)
-│   └── superadmin/   → Next.js 14 — Panel de la plataforma (dueño del SaaS) (puerto 3003)
+│   └── web/          → Next.js 16 — App unificada (puerto 3000)
+│                        /            → landing pública
+│                        /[slug]      → catálogo del cliente
+│                        /admin/*     → backoffice del distribuidor
+│                        /platform/*  → panel de la plataforma (dueño del SaaS)
 ├── packages/
-│   ├── api/          → Node.js + Express — API REST  (puerto 3001)
+│   ├── api/          → Node.js + Express — API REST  (puerto 3001, interno)
 │   ├── db/           → Prisma ORM + PostgreSQL
 │   └── shared/       → Tipos TypeScript compartidos
 ├── docker-compose.yml
 └── README.md
 ```
+
+`apps/admin` y `apps/superadmin` existieron como apps de Next.js separadas (puertos 3002/3003)
+hasta que se unificaron dentro de `apps/web`. El backend (`packages/api`, puerto 3001) sigue
+corriendo aparte, pero ya no se accede directo desde el navegador — `apps/web` lo reenvía vía
+`rewrites` de Next.js (ver `apps/web/next.config.js` e `INTERNAL_API_URL`).
 
 ## Requisitos Previos
 
@@ -67,10 +74,9 @@ npm run dev
 ```
 
 Esto levanta en paralelo:
-- **API**: http://localhost:3001
-- **Portal cliente / signup**: http://localhost:3000
-- **Backoffice admin**: http://localhost:3002
-- **Panel de plataforma (super-admin)**: http://localhost:3003
+- **API** (interna): http://localhost:3001
+- **App unificada**: http://localhost:3000 — landing pública, catálogo (`/[slug]`), backoffice del
+  distribuidor (`/admin`) y panel de plataforma (`/platform`)
 
 ---
 
@@ -92,21 +98,26 @@ Tras ejecutar el seed:
 
 | Rol                  | Email               | Password       | URL                          |
 |----------------------|----------------------|----------------|-------------------------------|
-| Distribuidor demo     | demo@stockapp.com    | demo1234       | http://localhost:3002 (backoffice) / http://localhost:3000/demo (catálogo, código `DEMO2024`) |
-| Administrador de plataforma | admin@stockapp.com | platform1234 | http://localhost:3003 |
+| Distribuidor demo     | demo@stockapp.com    | demo1234       | http://localhost:3000/login (backoffice) / http://localhost:3000/demo (catálogo, código `DEMO2024`) |
+| Administrador de plataforma | admin@stockapp.com | platform1234 | http://localhost:3000/platform-login |
 
 ---
 
 ## URLs de la Aplicación
 
-| App      | URL                             | Descripción                      |
+| Ruta      | URL                             | Descripción                      |
 |----------|---------------------------------|----------------------------------|
+| Landing  | `http://localhost:3000/`        | Home pública                     |
 | Portal   | `http://localhost:3000/[slug]`  | Catálogo + carrito del cliente   |
-| Signup   | `http://localhost:3000/signup`  | Alta pública de nuevas distribuidoras (3 meses de prueba gratis, sin pago) |
-| Backoffice | `http://localhost:3002`       | Panel del distribuidor           |
-| Panel de plataforma | `http://localhost:3003` | Gestión de distribuidoras, planes y pagos (dueño del SaaS) |
-| API      | `http://localhost:3001/api`     | REST API                         |
-| API Health | `http://localhost:3001/health` | Estado del servidor             |
+| Backoffice | `http://localhost:3000/admin` | Panel del distribuidor (login en `/login`) |
+| Panel de plataforma | `http://localhost:3000/platform` | Gestión de distribuidoras, planes y pagos (dueño del SaaS, login en `/platform-login`) |
+| API (interna) | `http://localhost:3001/api` | REST API — el navegador la llama vía `/api/*` en el mismo origen (3000), nunca directo |
+| API Health | `http://localhost:3001/health` | Estado del servidor (también proxeado en `/health`) |
+
+Nota: el autoregistro público de distribuidoras está cerrado — se dan de alta manualmente desde
+`/platform` (ver "Modelo de Negocio SaaS" más abajo). La sección de Endpoints de abajo aún
+menciona el signup público (`/api/signup`) por compatibilidad histórica del código, pero esa
+ruta pública ya no está en uso.
 
 ---
 
@@ -199,12 +210,11 @@ Copia `.env.example` a `.env` y configura:
 | `TWILIO_ACCOUNT_SID`  | SID de cuenta Twilio (WhatsApp)      | ❌        |
 | `TWILIO_AUTH_TOKEN`   | Token de Twilio                      | ❌        |
 | `TWILIO_WHATSAPP_FROM`| Número Twilio WhatsApp sender        | ❌        |
-| `MERCADOPAGO_ACCESS_TOKEN` | Access token de MercadoPago para cobrar suscripciones. Sin esto, el signup sigue creando cuentas en prueba gratuita pero no genera el checkout | ❌ (recomendada) |
-| `PLATFORM_URL`        | URL pública del portal cliente (`apps/web`), usada en los `back_urls` de MercadoPago | ❌ |
+| `MERCADOPAGO_ACCESS_TOKEN` | Access token de MercadoPago para cobrar suscripciones. Sin esto, no se genera el link de pago/checkout | ❌ (recomendada) |
+| `PLATFORM_URL`        | URL pública de la app unificada (`apps/web`), usada en los `back_urls` de MercadoPago y en el link de "recuperar contraseña" | ❌ |
 | `API_PUBLIC_URL`      | URL pública de la API, usada como `notification_url` del webhook de MercadoPago (debe ser accesible desde internet en producción) | ❌ |
-| `ADMIN_URL`           | URL del backoffice (`apps/admin`), usada en el link de "recuperar contraseña" | ❌ |
-| `NEXT_PUBLIC_API_URL` | URL de la API (para frontend)        | ✅        |
-| `ALLOWED_ORIGINS`     | Orígenes CORS (separados por coma), incluye el panel de plataforma | ❌        |
+| `INTERNAL_API_URL`    | URL interna de la API, usada solo del lado del servidor por `apps/web` (rewrites + fetch en Server Components) para reenviar `/api/*` y `/health` | ❌ (default `http://localhost:3001`) |
+| `ALLOWED_ORIGINS`     | Orígenes CORS (separados por coma) | ❌        |
 
 ---
 
@@ -234,7 +244,7 @@ docker-compose up -d
 docker-compose logs -f api
 ```
 
-Para los frontends en producción, despliega `apps/admin` y `apps/web` en Vercel, Netlify u otro proveedor Next.js y configura `NEXT_PUBLIC_API_URL` apuntando a tu API en producción.
+Para el frontend en producción, despliega `apps/web` en Vercel, Netlify u otro proveedor Next.js y configura `INTERNAL_API_URL` apuntando a tu API en producción (la usa el servidor de Next.js para los `rewrites` de `/api/*`).
 
 ---
 
@@ -281,7 +291,7 @@ El aislamiento de datos se garantiza mediante:
 Para llevar esto a producción real todavía falta, y requiere decisiones o credenciales tuyas:
 
 - **Credenciales reales de MercadoPago** (hoy el signup funciona con prueba gratis, pero el checkout no se genera sin `MERCADOPAGO_ACCESS_TOKEN`; probar el webhook en local requiere `ngrok` u otro túnel).
-- **Dockerfiles de `apps/web`, `apps/admin` y `apps/superadmin`** — solo `packages/api` tiene Dockerfile hoy; el resto se despliega en Vercel/Netlify o se dockeriza aparte.
+- **Dockerfile de `apps/web`** — solo `packages/api` tiene Dockerfile hoy; `apps/web` se despliega en Vercel/Netlify o se dockeriza aparte.
 - **Almacenamiento de imágenes** (S3/Cloudinary) — hoy `imageUrl` es pegar un link.
 - **Carga masiva de productos** (CSV/Excel).
 - **Roles múltiples por distribuidora** (hoy es un solo usuario/login por tenant).

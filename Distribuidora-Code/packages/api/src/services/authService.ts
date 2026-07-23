@@ -139,7 +139,10 @@ export async function requestPasswordReset(email: string): Promise<void> {
     data: { distributorId: distributor.id, token, expiresAt },
   });
 
-  const resetUrl = `${process.env.ADMIN_URL || 'http://localhost:3002'}/reset-password?token=${token}`;
+  // El panel del distribuidor (antes apps/admin, puerto 3002) ahora vive
+  // unificado dentro de apps/web, en PLATFORM_URL — por eso el link de
+  // recuperación usa esa variable y no la vieja ADMIN_URL.
+  const resetUrl = `${process.env.PLATFORM_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
 
   await sendMail({
     to: distributor.email,

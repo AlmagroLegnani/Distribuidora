@@ -3,7 +3,9 @@ import { prisma } from '../lib/prisma';
 import { getMercadoPagoClient } from '../lib/mercadopago';
 import { activateSubscription, recordPayment } from './subscriptionService';
 
-const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:3002';
+// El panel del distribuidor (antes apps/admin, puerto 3002, ruta /settings)
+// ahora vive unificado dentro de apps/web en PLATFORM_URL, bajo /admin/settings.
+const PLATFORM_URL = process.env.PLATFORM_URL || 'http://localhost:3000';
 const API_PUBLIC_URL = process.env.API_PUBLIC_URL || 'http://localhost:3001';
 
 /**
@@ -42,9 +44,9 @@ export async function createCheckoutPreference(subscriptionId: string): Promise<
       // El pago se inicia desde el botón "Pagar ahora" en Configuración (distribuidor
       // ya logueado), así que al volver de MercadoPago lo mandamos de nuevo ahí.
       back_urls: {
-        success: `${ADMIN_URL}/settings?payment=success`,
-        pending: `${ADMIN_URL}/settings?payment=pending`,
-        failure: `${ADMIN_URL}/settings?payment=failed`,
+        success: `${PLATFORM_URL}/admin/settings?payment=success`,
+        pending: `${PLATFORM_URL}/admin/settings?payment=pending`,
+        failure: `${PLATFORM_URL}/admin/settings?payment=failed`,
       },
       auto_return: 'approved',
     },

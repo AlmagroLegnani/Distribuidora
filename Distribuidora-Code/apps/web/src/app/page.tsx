@@ -1,8 +1,5 @@
 import Link from 'next/link';
 
-const ADMIN_LOGIN_URL =
-  process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002';
-
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -36,9 +33,10 @@ export default function HomePage() {
             </div>
           </Link>
 
-          {/* Soy distribuidora */}
-          <a
-            href={`${ADMIN_LOGIN_URL}/login`}
+          {/* Soy distribuidora — antes apuntaba a un ADMIN_LOGIN_URL externo
+              (apps/admin, puerto 3002); ahora /login vive en esta misma app. */}
+          <Link
+            href="/login"
             className="card p-8 flex flex-col items-center text-center gap-3 hover:shadow-md hover:border-blue-200 transition-all"
           >
             <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
@@ -57,7 +55,7 @@ export default function HomePage() {
                 Quiero ingresar a mi backoffice para gestionar pedidos y stock
               </p>
             </div>
-          </a>
+          </Link>
         </div>
 
         <div className="text-center mt-8">

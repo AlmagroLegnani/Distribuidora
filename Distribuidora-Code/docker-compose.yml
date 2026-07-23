@@ -43,10 +43,9 @@ services:
       MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN:-}
       PLATFORM_URL: ${PLATFORM_URL:-http://localhost:3000}
       API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3001}
-      ADMIN_URL: ${ADMIN_URL:-http://localhost:3002}
       PORT: 3001
       NODE_ENV: production
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3002,http://localhost:3003}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
     ports:
       - "3001:3001"
 

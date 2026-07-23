@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 /** Login/password-reset endpoints — brute-force protection. */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiados intentos. Intenta de nuevo en unos minutos.' },
