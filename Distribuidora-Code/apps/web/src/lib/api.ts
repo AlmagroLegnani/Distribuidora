@@ -19,6 +19,8 @@ export interface Distributor {
   phone: string | null;
 }
 
+export type IvaType = 'BASICA' | 'MINIMA';
+
 export interface Product {
   id: string;
   name: string;
@@ -28,6 +30,8 @@ export interface Product {
   price: number;
   /** Precio de lista original, solo presente cuando este cliente tiene un precio especial (price ya viene con el descuento aplicado). */
   originalPrice: number | null;
+  /** Tasa de IVA de Uruguay ya incluida en `price` (precio final, no se recalcula nada). */
+  ivaType: IvaType;
   stock: number;
   category: string | null;
   imageUrl: string | null;
@@ -59,6 +63,7 @@ export interface ClientOrder {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    ivaType: IvaType;
     product: { name: string; code: string | null };
   }>;
 }
@@ -73,6 +78,7 @@ export interface OrderResult {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    ivaType: IvaType;
     product: { name: string; code: string | null };
   }>;
 }

@@ -40,6 +40,11 @@ interface PasswordForm {
   confirmPassword: string;
 }
 
+interface ProfileForm {
+  rut: string;
+  cedula: string;
+}
+
 export default function SettingsPage() {
   const searchParams = useSearchParams();
   const paymentResult = searchParams.get('payment'); // success | pending | failed, seteado al volver de MercadoPago
@@ -67,9 +72,21 @@ export default function SettingsPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
 
+  const [profile, setProfile] = useState<ProfileForm>({ rut: '', cedula: '' });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState('');
+
+  const [passwordChanged, setPasswordChanged] = useState(false);
+
   useEffect(() => {
     api
-      .get<{ settings: Settings | null; subscription: Subscription | null }>('/auth/me')
+      .get<{
+        settings: Settings | null;
+        subscription: Subscription | null;
+        rut: string | null;
+        cedula: string | null;
+        passwordChanged: boolean;
+      }>('/auth/me')
       .then((data) => {
         if (data.settings) {
           setSettings({
@@ -80,6 +97,8 @@ export default function SettingsPage() {
           });
         }
         setSubscription(data.subscription);
+        setProfile({ rut: data.rut || '', cedula: data.cedula || '' });
+        setPasswordChanged(data.passwordChanged);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -116,9 +135,29 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveProfile() {
+    setSavingProfile(true);
+    setProfileMsg('');
+    try {
+      await api.put('/auth/profile', {
+        rut: profile.rut || null,
+        cedula: profile.cedula || null,
+      });
+      setProfileMsg('Datos guardados.');
+    } catch (err) {
+      setProfileMsg(err instanceof Error ? err.message : 'Error al guardar');
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
   async function changePassword() {
     setPwError('');
     setPwMsg('');
+    if (passwordChanged && !pwForm.currentPassword) {
+      setPwError('Ingresá tu contraseña actual');
+      return;
+    }
     if (pwForm.newPassword !== pwForm.confirmPassword) {
       setPwError('Las contraseñas no coinciden');
       return;
@@ -130,11 +169,12 @@ export default function SettingsPage() {
     setSavingPw(true);
     try {
       await api.post('/auth/change-password', {
-        currentPassword: pwForm.currentPassword,
+        ...(passwordChanged ? { currentPassword: pwForm.currentPassword } : {}),
         newPassword: pwForm.newPassword,
       });
-      setPwMsg('Contraseña actualizada correctamente.');
+      setPwMsg(passwordChanged ? 'Contraseña actualizada correctamente.' : '¡Contraseña creada! Ya podés usarla para entrar.');
       setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordChanged(true);
     } catch (err) {
       setPwError(err instanceof Error ? err.message : 'Error al cambiar contraseña');
     } finally {
@@ -254,6 +294,46 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Datos de la empresa */}
+      <div className="card p-6 space-y-4">
+        <h3 className="font-semibold text-gray-900 text-lg">Datos de tu empresa</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">RUT</label>
+            <input
+              value={profile.rut}
+              onChange={(e) => setProfile({ ...profile, rut: e.target.value })}
+              placeholder="21-123456-0019"
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="label">Cédula</label>
+            <input
+              value={profile.cedula}
+              onChange={(e) => setProfile({ ...profile, cedula: e.target.value })}
+              placeholder="1.234.567-8"
+              className="input"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">Cargá RUT o Cédula, lo que tenga tu negocio.</p>
+
+        {profileMsg && (
+          <div
+            className={`text-sm p-2 rounded ${
+              profileMsg.includes('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+            }`}
+          >
+            {profileMsg}
+          </div>
+        )}
+
+        <button onClick={saveProfile} disabled={savingProfile} className="btn-primary">
+          {savingProfile ? 'Guardando...' : 'Guardar datos'}
+        </button>
+      </div>
+
       {/* Notifications */}
       <div className="card p-6 space-y-5">
         <h3 className="font-semibold text-gray-900 text-lg">Notificaciones</h3>
@@ -304,9 +384,19 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* Change Password */}
+      {/* Password: la primera vez es "creá tu contraseña" (todavía está usando
+          el código de acceso que le mandamos por email), después pasa a ser
+          el formulario normal de "cambiar contraseña" pidiendo la actual. */}
       <div className="card p-6 space-y-4">
-        <h3 className="font-semibold text-gray-900 text-lg">Cambiar Contraseña</h3>
+        <h3 className="font-semibold text-gray-900 text-lg">
+          {passwordChanged ? 'Cambiar Contraseña' : 'Creá tu contraseña'}
+        </h3>
+        {!passwordChanged && (
+          <p className="text-sm text-gray-500 -mt-2">
+            Todavía estás usando el código de acceso que te llegó por email para entrar. Elegí acá
+            una contraseña propia para usar de ahora en más.
+          </p>
+        )}
 
         {pwError && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -319,17 +409,19 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {passwordChanged && (
+          <div>
+            <label className="label">Contraseña actual</label>
+            <input
+              type="password"
+              value={pwForm.currentPassword}
+              onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
+              className="input"
+            />
+          </div>
+        )}
         <div>
-          <label className="label">Contraseña actual</label>
-          <input
-            type="password"
-            value={pwForm.currentPassword}
-            onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
-            className="input"
-          />
-        </div>
-        <div>
-          <label className="label">Nueva contraseña</label>
+          <label className="label">{passwordChanged ? 'Nueva contraseña' : 'Contraseña'}</label>
           <input
             type="password"
             value={pwForm.newPassword}
@@ -338,7 +430,7 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className="label">Confirmar nueva contraseña</label>
+          <label className="label">{passwordChanged ? 'Confirmar nueva contraseña' : 'Confirmar contraseña'}</label>
           <input
             type="password"
             value={pwForm.confirmPassword}
@@ -348,7 +440,7 @@ export default function SettingsPage() {
         </div>
 
         <button onClick={changePassword} disabled={savingPw} className="btn-primary">
-          {savingPw ? 'Actualizando...' : 'Cambiar contraseña'}
+          {savingPw ? 'Guardando...' : passwordChanged ? 'Cambiar contraseña' : 'Crear contraseña'}
         </button>
       </div>
     </div>

@@ -14,6 +14,12 @@ model Distributor {
   email     String   @unique
   password  String   // hash bcrypt
   phone     String?
+  rut       String?  @unique // RUT de la distribuidora, si tiene
+  cedula    String?  @unique // Cédula de identidad, para distribuidoras unipersonales sin RUT
+  // false hasta que la distribuidora elige su propia contraseña (al crearla,
+  // "password" es en realidad el código de acceso que le mandamos por email).
+  // Se usa para saber si mostrarle "Creá tu contraseña" o "Cambiar contraseña".
+  passwordChanged Boolean @default(false)
   logoUrl   String?
   slug      String   @unique // identificador único de URL ej: "distrib-norte"
   categories String[] @default([]) // rubros de la distribuidora (multi-select), ej: "Bebidas", "Limpieza e Higiene"
@@ -128,6 +134,10 @@ model Product {
   brand           String?
   description     String?
   price           Float
+  // Tasa de IVA de Uruguay que ya está incluida en `price` (precio final al
+  // público, no se recalcula nada) — BASICA 22% por defecto, MINIMA 10% para
+  // productos de primera necesidad. Ver lib/iva.ts para los porcentajes.
+  ivaType         IvaType     @default(BASICA)
   stock           Int
   category        String?
   imageUrl        String?
@@ -256,6 +266,10 @@ model OrderItem {
   quantity  Int
   unitPrice Float
   subtotal  Float
+  // Copia de Product.ivaType al momento de la compra — igual que unitPrice/
+  // subtotal, no se lee en vivo del producto para que un cambio posterior de
+  // tasa no altere pedidos/comprobantes ya generados.
+  ivaType   IvaType @default(BASICA)
 }
 
 enum OrderStatus {
@@ -263,6 +277,13 @@ enum OrderStatus {
   PROCESSING
   COMPLETED
   CANCELLED
+}
+
+// Tasas de IVA de Uruguay relevantes para el catálogo de un distribuidor
+// (no incluye la tasa 0%/exenta, que hoy no se contempla en el sistema).
+enum IvaType {
+  BASICA // 22%
+  MINIMA // 10%
 }
 
 enum ContactRequestStatus {

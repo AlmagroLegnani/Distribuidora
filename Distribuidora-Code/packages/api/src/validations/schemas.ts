@@ -14,6 +14,9 @@ export const createProductSchema = z.object({
   brand: z.string().max(100).optional().nullable(),
   description: z.string().max(1000).optional().nullable(),
   price: z.number().positive('Price must be positive'),
+  // Tasa de IVA de Uruguay ya incluida en `price`. Básica (22%) por defecto,
+  // que es la que aplica a la mayoría de los productos.
+  ivaType: z.enum(['BASICA', 'MINIMA']).optional().default('BASICA'),
   stock: z.number().int().min(0, 'Stock cannot be negative'),
   category: z.string().max(100).optional().nullable(),
   imageUrl: z.string().url().optional().nullable(),
@@ -138,6 +141,9 @@ export const createDistributorSchema = z.object({
       message: 'Ese identificador de URL está reservado por el sistema, elegí otro',
     }),
   phone: z.string().min(1, 'El teléfono es obligatorio').max(20),
+  // Igual que en Client: opcional, uno u otro, se limpia a solo dígitos.
+  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
+  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
   planId: z.string().cuid('Invalid plan ID'),
 });
 
@@ -176,6 +182,14 @@ export const updateSettingsSchema = z.object({
   sendWhatsapp: z.boolean().optional(),
 });
 
+// La distribuidora edita su propio RUT/Cédula desde Configuración — igual
+// que en Client, opcional y uno u otro (no forzamos ninguno de los dos acá:
+// muchas distribuidoras ya existentes no lo tienen cargado).
+export const updateDistributorProfileSchema = z.object({
+  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
+  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
+});
+
 export const updateCategoriesSchema = z.object({
   categories: z
     .array(z.enum(DISTRIBUTOR_CATEGORIES))
@@ -183,7 +197,11 @@ export const updateCategoriesSchema = z.object({
 });
 
 export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
+  // Opcional: solo se exige (y se valida) del lado del servicio cuando la
+  // distribuidora ya había elegido antes su propia contraseña
+  // (Distributor.passwordChanged) — la primera vez no tiene una "actual"
+  // real, es el código de acceso que le mandamos por email.
+  currentPassword: z.string().optional(),
   newPassword: z
     .string()
     .min(8, 'New password must be at least 8 characters'),

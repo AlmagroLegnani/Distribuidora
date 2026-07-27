@@ -4,6 +4,13 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '@/lib/admin/api';
 import { formatCurrency } from '@/lib/admin/utils';
 
+type IvaType = 'BASICA' | 'MINIMA';
+
+const IVA_LABELS: Record<IvaType, string> = {
+  BASICA: 'Básica (22%)',
+  MINIMA: 'Mínima (10%)',
+};
+
 interface Product {
   id: string;
   name: string;
@@ -11,6 +18,7 @@ interface Product {
   brand: string | null;
   description: string | null;
   price: number;
+  ivaType: IvaType;
   stock: number;
   category: string | null;
   active: boolean;
@@ -22,6 +30,7 @@ interface ProductFormData {
   brand: string;
   description: string;
   price: string;
+  ivaType: IvaType;
   stock: string;
   category: string;
 }
@@ -32,6 +41,7 @@ const EMPTY_FORM: ProductFormData = {
   brand: '',
   description: '',
   price: '',
+  ivaType: 'BASICA',
   stock: '',
   category: '',
 };
@@ -87,6 +97,7 @@ export default function ProductsPage() {
       brand: product.brand || '',
       description: product.description || '',
       price: String(product.price),
+      ivaType: product.ivaType,
       stock: String(product.stock),
       category: product.category || '',
     });
@@ -104,6 +115,7 @@ export default function ProductsPage() {
         brand: form.brand || null,
         description: form.description || null,
         price: parseFloat(form.price),
+        ivaType: form.ivaType,
         stock: parseInt(form.stock, 10),
         category: form.category || null,
       };
@@ -199,6 +211,7 @@ export default function ProductsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Marca</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Categoría</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">IVA</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Precio</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Stock</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Acciones</th>
@@ -215,6 +228,7 @@ export default function ProductsPage() {
                         {product.code || '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-600">{product.category || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{IVA_LABELS[product.ivaType]}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(product.price)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
@@ -366,6 +380,18 @@ export default function ProductsPage() {
                     className="input"
                     placeholder="1200"
                   />
+                  <p className="text-xs text-gray-400 mt-1">Precio final, IVA incluido.</p>
+                </div>
+                <div>
+                  <label className="label">IVA *</label>
+                  <select
+                    value={form.ivaType}
+                    onChange={(e) => setForm({ ...form, ivaType: e.target.value as IvaType })}
+                    className="input"
+                  >
+                    <option value="BASICA">Básica (22%)</option>
+                    <option value="MINIMA">Mínima (10%)</option>
+                  </select>
                 </div>
                 <div>
                   <label className="label">Stock *</label>

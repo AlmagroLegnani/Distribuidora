@@ -103,6 +103,19 @@ export async function markDistributorPaid(
   }
 }
 
+export async function resendAccess(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await platformService.resendAccess(req.params.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listPlans(
   _req: PlatformAuthRequest,
   res: Response,

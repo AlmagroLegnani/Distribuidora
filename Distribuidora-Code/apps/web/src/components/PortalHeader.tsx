@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/cart';
 import { loadAccess } from '@/lib/access';
+import { buildWhatsAppLink } from '@/lib/whatsapp';
 
 interface Distributor {
   id: string;
@@ -131,6 +132,26 @@ export default function PortalHeader({
           <span className="text-[11px] font-medium">Cambiar distribuidora</span>
         </Link>
       </nav>
+
+      {/* Botón flotante de WhatsApp: solo para consultas puntuales, no para
+          hacer pedidos (eso sigue yendo por el catálogo/carrito). Se muestra
+          arriba de la barra inferior en mobile para no taparla. */}
+      {distributor.phone && (
+        <a
+          href={buildWhatsAppLink(
+            distributor.phone,
+            `Hola! Soy cliente de ${distributor.name} y tengo una consulta.`
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Hacer una consulta por WhatsApp (no es para hacer pedidos)"
+          className="fixed z-40 bottom-20 sm:bottom-6 right-4 sm:right-6 w-14 h-14 bg-green-500 hover:bg-green-600 rounded-full shadow-lg flex items-center justify-center transition-colors"
+        >
+          <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 004.74 1.2h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.83 14.08c-.24.68-1.39 1.32-1.92 1.4-.49.08-1.11.11-1.79-.11-.41-.13-.94-.31-1.62-.6-2.85-1.23-4.71-4.1-4.85-4.29-.14-.19-1.16-1.55-1.16-2.95 0-1.41.74-2.1 1-2.39.26-.28.57-.35.76-.35h.55c.18 0 .42-.03.65.5.24.55.81 1.9.88 2.04.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.16-.29.36-.42.49-.14.14-.28.29-.12.56.16.28.7 1.16 1.51 1.88 1.04.93 1.91 1.22 2.19 1.36.28.14.44.12.61-.07.16-.19.68-.79.87-1.06.19-.28.37-.23.62-.14.26.09 1.63.77 1.91.91.28.14.47.21.53.33.07.12.07.68-.17 1.36z" />
+          </svg>
+        </a>
+      )}
     </header>
   );
 }

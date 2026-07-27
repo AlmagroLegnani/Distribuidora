@@ -54,9 +54,10 @@ export async function updateStatus(
 
 /**
  * Generates a printable order receipt (PDF) and, if the client has an email
- * on file, emails it to them as an attachment. Returns the PDF so the
- * distributor can also view/print it right away from the backoffice.
- * This is an internal comprobante, not a legally valid CFE — see
+ * on file AND the distributor has "Enviar email de confirmación al cliente"
+ * activado en Configuración, emails it to them as an attachment. Returns the
+ * PDF so the distributor can also view/print it right away from the
+ * backoffice. This is an internal comprobante, not a legally valid CFE — see
  * lib/receiptPdf.ts for details.
  */
 export async function getReceipt(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -66,7 +67,8 @@ export async function getReceipt(req: AuthRequest, res: Response, next: NextFunc
     const shortId = order.id.slice(-8).toUpperCase();
 
     let emailedTo: string | null = null;
-    if (order.client.email) {
+    const sendClientEmail = order.distributor.settings?.sendClientEmail ?? true;
+    if (sendClientEmail && order.client.email) {
       try {
         await sendMail({
           to: order.client.email,

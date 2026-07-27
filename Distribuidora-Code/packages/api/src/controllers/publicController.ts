@@ -150,6 +150,7 @@ export async function getPublicProducts(
         brand: true,
         description: true,
         price: true,
+        ivaType: true,
         stock: true,
         category: true,
         imageUrl: true,

@@ -1,9 +1,12 @@
 import PDFDocument from 'pdfkit';
+import { IvaType } from '@prisma/client';
+import { IVA_LABELS, ivaAmountFromFinalPrice } from './iva';
 
 export interface ReceiptItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  ivaType: IvaType;
   product: { name: string; code: string | null };
 }
 
@@ -43,10 +46,16 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+const IVA_SHORT_LABELS: Record<IvaType, string> = {
+  BASICA: '22%',
+  MINIMA: '10%',
+};
+
 const MARGIN = 50;
 const PAGE_WIDTH = 595.28; // A4 in points
 const CONTENT_RIGHT = PAGE_WIDTH - MARGIN;
-const COL = { product: MARGIN, qty: 330, price: 390, subtotal: 470 };
+// Ancho repartido entre 5 columnas (antes eran 4 — se agregó "IVA").
+const COL = { product: MARGIN, qty: 300, iva: 345, price: 400, subtotal: 470 };
 
 /**
  * Builds a printable order receipt as a PDF buffer. This is an internal
@@ -76,7 +85,7 @@ export function buildOrderReceiptPdf(order: ReceiptOrder): Promise<Buffer> {
     doc.fillColor('#000').font('Helvetica-Bold').fontSize(14).text(`Comprobante de Pedido #${shortId}`);
     doc.font('Helvetica').fontSize(8).fillColor('#888');
     doc.text(
-      'Documento interno a modo de remito/comprobante de pedido. No constituye una factura fiscal electrónica (CFE).'
+      'Documento interno a modo de remito/comprobante de pedido. No constituye una factura fiscal electrónica (CFE). Los precios ya incluyen el IVA correspondiente a cada producto.'
     );
     doc.fillColor('#000').fontSize(10);
     doc.moveDown(0.5);
@@ -88,7 +97,7 @@ export function buildOrderReceiptPdf(order: ReceiptOrder): Promise<Buffer> {
     doc.font('Helvetica').fontSize(10);
     if (order.client.rut) doc.text(`RUT: ${maskDocument(order.client.rut)}`);
     if (order.client.cedula) doc.text(`Cédula: ${maskDocument(order.client.cedula)}`);
-    if (order.client.name) doc.text(`Empresa: ${order.client.name}`);
+    if (order.client.name) doc.text(`Razón Social: ${order.client.name}`);
     if (order.client.phone) doc.text(`Teléfono: ${order.client.phone}`);
     if (order.client.email) doc.text(`Email: ${order.client.email}`);
     doc.moveDown(1);
@@ -97,12 +106,17 @@ export function buildOrderReceiptPdf(order: ReceiptOrder): Promise<Buffer> {
     let y = doc.y;
     doc.font('Helvetica-Bold').fontSize(9);
     doc.text('Producto', COL.product, y, { width: COL.qty - COL.product - 10 });
-    doc.text('Cant.', COL.qty, y, { width: COL.price - COL.qty - 5 });
+    doc.text('Cant.', COL.qty, y, { width: COL.iva - COL.qty - 5 });
+    doc.text('IVA', COL.iva, y, { width: COL.price - COL.iva - 5 });
     doc.text('Precio', COL.price, y, { width: COL.subtotal - COL.price - 5 });
     doc.text('Subtotal', COL.subtotal, y, { width: CONTENT_RIGHT - COL.subtotal, align: 'right' });
     y += 14;
     doc.moveTo(MARGIN, y).lineTo(CONTENT_RIGHT, y).strokeColor('#cccccc').stroke();
     y += 8;
+
+    // Acumuladores para el desglose de IVA por tasa (se arma mientras se
+    // dibuja cada fila, así se recorre `order.items` una sola vez).
+    const subtotalByIva: Record<IvaType, number> = { BASICA: 0, MINIMA: 0 };
 
     doc.font('Helvetica').fontSize(9);
     for (const item of order.items) {
@@ -110,10 +124,13 @@ export function buildOrderReceiptPdf(order: ReceiptOrder): Promise<Buffer> {
         doc.addPage();
         y = MARGIN;
       }
+      subtotalByIva[item.ivaType] += item.subtotal;
+
       const name = item.product.code ? `${item.product.name} (${item.product.code})` : item.product.name;
       const rowHeight = doc.heightOfString(name, { width: COL.qty - COL.product - 10 });
       doc.text(name, COL.product, y, { width: COL.qty - COL.product - 10 });
-      doc.text(String(item.quantity), COL.qty, y, { width: COL.price - COL.qty - 5 });
+      doc.text(String(item.quantity), COL.qty, y, { width: COL.iva - COL.qty - 5 });
+      doc.text(IVA_SHORT_LABELS[item.ivaType], COL.iva, y, { width: COL.price - COL.iva - 5 });
       doc.text(formatCurrency(item.unitPrice), COL.price, y, { width: COL.subtotal - COL.price - 5 });
       doc.text(formatCurrency(item.subtotal), COL.subtotal, y, {
         width: CONTENT_RIGHT - COL.subtotal,
@@ -126,6 +143,28 @@ export function buildOrderReceiptPdf(order: ReceiptOrder): Promise<Buffer> {
     y += 10;
     doc.font('Helvetica-Bold').fontSize(12);
     doc.text(`TOTAL: ${formatCurrency(order.total)}`, MARGIN, y, { width: CONTENT_RIGHT - MARGIN, align: 'right' });
+    y = doc.y + 6;
+
+    // Discriminación de IVA — solo se muestran las tasas que efectivamente
+    // aparecen en el pedido. El IVA se calcula "hacia atrás" porque el
+    // precio de cada producto ya es el precio final (IVA incluido).
+    const ivaTypesUsed = (Object.keys(subtotalByIva) as IvaType[]).filter((t) => subtotalByIva[t] > 0);
+    if (ivaTypesUsed.length > 0) {
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#555').text('Discriminación de IVA (incluido en el precio)', MARGIN, y);
+      y = doc.y + 2;
+      doc.font('Helvetica').fontSize(9).fillColor('#555');
+      for (const ivaType of ivaTypesUsed) {
+        const subtotal = subtotalByIva[ivaType];
+        const ivaAmount = ivaAmountFromFinalPrice(subtotal, ivaType);
+        doc.text(
+          `${IVA_LABELS[ivaType]} — gravado: ${formatCurrency(subtotal)} · IVA contenido: ${formatCurrency(ivaAmount)}`,
+          MARGIN,
+          y
+        );
+        y = doc.y + 2;
+      }
+      doc.fillColor('#000');
+    }
 
     if (order.notes) {
       doc.moveDown(2);
