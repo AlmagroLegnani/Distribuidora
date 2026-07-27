@@ -7,6 +7,7 @@ import { useCart } from '@/context/CartContext';
 import { formatCurrency, validateDocument, formatDocument } from '@/lib/cart';
 import { createOrder } from '@/lib/api';
 import { loadAccess } from '@/lib/access';
+import { IVA_LABELS } from '@/lib/iva';
 
 export default function CartPage() {
   const params = useParams();
@@ -66,6 +67,18 @@ export default function CartPage() {
         notes: notes || undefined,
         items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       });
+
+      // Guardamos el pedido completo (items, precios, IVA) para que la
+      // pantalla de confirmación pueda mostrar el detalle real en vez de
+      // solo el total. No hay endpoint público para reconsultar un pedido
+      // puntual sin volver a pasar por la verificación de acceso, así que
+      // lo pasamos por sessionStorage en el momento de la redirección.
+      try {
+        sessionStorage.setItem(`order_${order.id}`, JSON.stringify(order));
+      } catch {
+        // Si sessionStorage no está disponible (modo privado, cuota, etc.)
+        // la pantalla de confirmación cae al detalle mínimo (orderId + total).
+      }
 
       clearCart();
       router.push(`/${slug}/confirm?orderId=${order.id}&total=${order.total}`);
@@ -132,6 +145,9 @@ export default function CartPage() {
                         <div className="text-xs text-gray-400 font-mono">{item.code}</div>
                       )}
                       <div className="text-xs text-gray-500">{formatCurrency(item.price)} c/u</div>
+                      {item.ivaType && IVA_LABELS[item.ivaType] && (
+                        <div className="text-[11px] text-gray-400">{IVA_LABELS[item.ivaType]} incluido</div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
@@ -180,6 +196,9 @@ export default function CartPage() {
               </tfoot>
             </table>
           </div>
+          <p className="text-[11px] text-gray-400 px-4 py-2 border-t border-gray-50">
+            Los precios ya incluyen el IVA correspondiente a cada producto.
+          </p>
         </div>
 
         {/* Order form */}

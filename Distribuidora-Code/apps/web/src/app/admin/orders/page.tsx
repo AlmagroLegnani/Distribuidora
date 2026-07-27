@@ -139,7 +139,7 @@ export default function OrdersPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Pedido</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">RUT/Cédula</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Empresa</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Razón Social</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Productos</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Estado</th>

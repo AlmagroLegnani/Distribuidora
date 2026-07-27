@@ -21,6 +21,10 @@ interface DistributorDetail {
   slug: string;
   phone: string | null;
   active: boolean;
+  // Igual que en la lista: una vez que la distribuidora eligió su propia
+  // contraseña, ya puede recuperarla ella misma desde /login, así que se
+  // oculta el botón de "Reenviar acceso".
+  passwordChanged: boolean;
   createdAt: string;
   subscription:
     | {
@@ -101,6 +105,25 @@ export default function DistributorDetailPage() {
     try {
       await api.post(`/distributors/${id}/mark-paid`, {});
       await fetchDetail();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResendAccess() {
+    if (
+      !distributor ||
+      !confirm(
+        `¿Enviarle a ${distributor.name} un link por email para crear una contraseña nueva? Esto sirve si perdió el código de acceso original.`
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const result = await api.post<{ email: string }>(`/distributors/${id}/resend-access`, {});
+      alert(`Listo, le enviamos un link para crear su contraseña a ${result.email}.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al reenviar el acceso');
     } finally {
       setBusy(false);
     }
@@ -241,6 +264,27 @@ export default function DistributorDetailPage() {
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {distributor.passwordChanged ? (
+        <div className="card p-5 space-y-1">
+          <h3 className="font-semibold text-gray-900">Acceso</h3>
+          <p className="text-sm text-gray-500">
+            Esta distribuidora ya eligió su propia contraseña. Si la olvida, puede recuperarla ella
+            misma desde "¿Olvidaste tu contraseña?" en la pantalla de inicio de sesión.
+          </p>
+        </div>
+      ) : (
+        <div className="card p-5 space-y-2">
+          <h3 className="font-semibold text-gray-900">Acceso</h3>
+          <p className="text-sm text-gray-500">
+            Todavía no eligió su propia contraseña (sigue usando el código de acceso original). Si lo
+            perdió, reenviale un link para crear una nueva.
+          </p>
+          <button onClick={handleResendAccess} disabled={busy} className="btn-secondary text-xs">
+            Reenviar acceso
+          </button>
         </div>
       )}
 

@@ -1,8 +1,11 @@
+import type { IvaType } from './api';
+
 export interface CartItem {
   productId: string;
   name: string;
   code: string | null;
   price: number;
+  ivaType: IvaType;
   quantity: number;
   maxStock: number;
 }

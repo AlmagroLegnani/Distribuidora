@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { generateAccessCode } from '../lib/accessCode';
 import { sendMail } from '../lib/mailer';
+import { requestPasswordReset } from './authService';
 import { createPaymentDueNotice } from './stockAlertService';
 import {
   reconcileSubscription,
@@ -90,6 +91,15 @@ export async function createDistributor(input: CreateDistributorInput) {
     throw new AppError(409, `El identificador de URL "${input.slug}" ya está en uso, elige otro`);
   }
 
+  if (input.rut) {
+    const existingRut = await prisma.distributor.findUnique({ where: { rut: input.rut } });
+    if (existingRut) throw new AppError(409, 'Ya existe una distribuidora registrada con ese RUT');
+  }
+  if (input.cedula) {
+    const existingCedula = await prisma.distributor.findUnique({ where: { cedula: input.cedula } });
+    if (existingCedula) throw new AppError(409, 'Ya existe una distribuidora registrada con esa Cédula');
+  }
+
   const plan = await prisma.plan.findUnique({ where: { id: input.planId } });
   if (!plan) throw new AppError(404, 'Plan not found');
 
@@ -102,6 +112,8 @@ export async function createDistributor(input: CreateDistributorInput) {
       email: input.email,
       password: hashedPassword,
       phone: input.phone,
+      rut: input.rut || null,
+      cedula: input.cedula || null,
       slug: input.slug,
       active: true,
     },
@@ -216,6 +228,22 @@ export async function notifyPaymentDue(distributorId: string) {
   await createPaymentDueNotice(distributorId, message);
 
   return { dueDate, businessDaysUntilDue: businessDays, message };
+}
+
+/**
+ * Le reenvía a la distribuidora un link para elegir una contraseña nueva,
+ * reutilizando el mismo flujo de "olvidé mi contraseña" (email + token de un
+ * solo uso). Existe porque el código de acceso original queda guardado sólo
+ * como hash (bcrypt, no reversible) — ni siquiera el superadmin puede volver
+ * a mostrarlo si la distribuidora lo perdió o cerró sesión sin guardarlo.
+ */
+export async function resendAccess(distributorId: string) {
+  const distributor = await prisma.distributor.findUnique({ where: { id: distributorId } });
+  if (!distributor) throw new AppError(404, 'Distributor not found');
+
+  await requestPasswordReset(distributor.email);
+
+  return { email: distributor.email };
 }
 
 // ─── Plans ───────────────────────────────────────────────────────────────────

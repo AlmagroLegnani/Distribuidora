@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/cart';
+import type { IvaType } from '@/lib/api';
+
+const IVA_LABELS: Record<IvaType, string> = {
+  BASICA: 'IVA 22% incluido',
+  MINIMA: 'IVA 10% incluido',
+};
 
 interface Product {
   id: string;
@@ -12,6 +18,7 @@ interface Product {
   description: string | null;
   price: number;
   originalPrice?: number | null;
+  ivaType: IvaType;
   stock: number;
   category: string | null;
 }
@@ -31,6 +38,7 @@ export default function ProductCard({ product }: { product: Product }) {
       name: product.name,
       code: product.code,
       price: product.price,
+      ivaType: product.ivaType,
       quantity,
       maxStock: product.stock,
     });
@@ -71,21 +79,24 @@ export default function ProductCard({ product }: { product: Product }) {
       </div>
 
       {/* Price */}
-      <div className="flex items-baseline gap-2">
-        {product.originalPrice != null && (
-          <span
-            className="text-sm text-gray-400 line-through"
-            style={{ textDecoration: 'line-through' }}
-          >
-            {formatCurrency(product.originalPrice)}
-          </span>
-        )}
-        <span className="text-xl font-bold text-blue-700">{formatCurrency(product.price)}</span>
-        {product.originalPrice != null && (
-          <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">
-            precio único
-          </span>
-        )}
+      <div>
+        <div className="flex items-baseline gap-2">
+          {product.originalPrice != null && (
+            <span
+              className="text-sm text-gray-400 line-through"
+              style={{ textDecoration: 'line-through' }}
+            >
+              {formatCurrency(product.originalPrice)}
+            </span>
+          )}
+          <span className="text-xl font-bold text-blue-700">{formatCurrency(product.price)}</span>
+          {product.originalPrice != null && (
+            <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">
+              precio único
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] text-gray-400">{IVA_LABELS[product.ivaType]}</span>
       </div>
 
       {/* Add to cart */}

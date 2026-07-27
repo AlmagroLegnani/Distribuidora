@@ -7,6 +7,7 @@ import {
   loginSchema,
   changePasswordSchema,
   updateSettingsSchema,
+  updateDistributorProfileSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
 } from '../validations/schemas';
@@ -52,6 +53,14 @@ router.put(
   authMiddleware,
   validate(updateSettingsSchema),
   authController.updateSettings
+);
+
+// PUT /api/auth/profile — distribuidora edita su propio RUT/Cédula
+router.put(
+  '/profile',
+  authMiddleware,
+  validate(updateDistributorProfileSchema),
+  authController.updateProfile
 );
 
 // POST /api/auth/billing/checkout — generates a MercadoPago checkout link to pay/renew

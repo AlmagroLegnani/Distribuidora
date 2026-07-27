@@ -283,7 +283,7 @@ export default function ClientsPage() {
               </p>
             </div>
             <div>
-              <label className="label">Nombre de empresa</label>
+              <label className="label">Razón Social</label>
               <input
                 type="text"
                 value={form.name}

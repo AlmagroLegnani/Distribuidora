@@ -85,6 +85,9 @@ export async function getProfile(distributorId: string): Promise<object> {
       slug: true,
       logoUrl: true,
       phone: true,
+      rut: true,
+      cedula: true,
+      passwordChanged: true,
       categories: true,
       active: true,
       createdAt: true,
@@ -106,23 +109,30 @@ export async function getProfile(distributorId: string): Promise<object> {
 
 export async function changePassword(
   distributorId: string,
-  currentPassword: string,
+  currentPassword: string | undefined,
   newPassword: string
 ): Promise<void> {
   const distributor = await prisma.distributor.findUnique({
     where: { id: distributorId },
-    select: { password: true },
+    select: { password: true, passwordChanged: true },
   });
 
   if (!distributor) throw new AppError(404, 'Distributor not found');
 
-  const match = await bcrypt.compare(currentPassword, distributor.password);
-  if (!match) throw new AppError(401, 'Current password is incorrect');
+  // La primera vez (todavía no eligió su propia contraseña), no le pedimos
+  // la "actual" porque en rigor nunca la definió ella misma — es el código
+  // de acceso que le mandamos por email. A partir de que la cambia una vez,
+  // sí exigimos la actual como corresponde.
+  if (distributor.passwordChanged) {
+    if (!currentPassword) throw new AppError(400, 'Debés ingresar tu contraseña actual');
+    const match = await bcrypt.compare(currentPassword, distributor.password);
+    if (!match) throw new AppError(401, 'Current password is incorrect');
+  }
 
   const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
   await prisma.distributor.update({
     where: { id: distributorId },
-    data: { password: hashed },
+    data: { password: hashed, passwordChanged: true },
   });
 }
 
@@ -169,7 +179,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
   await prisma.$transaction([
     prisma.distributor.update({
       where: { id: resetToken.distributorId },
-      data: { password: hashed },
+      data: { password: hashed, passwordChanged: true },
     }),
     prisma.passwordResetToken.update({
       where: { id: resetToken.id },
@@ -193,6 +203,30 @@ export async function updateSettings(
     create: { distributorId, ...data },
   });
   return settings;
+}
+
+export async function updateProfile(
+  distributorId: string,
+  data: { rut?: string | null; cedula?: string | null }
+): Promise<object> {
+  if (data.rut) {
+    const existing = await prisma.distributor.findUnique({ where: { rut: data.rut } });
+    if (existing && existing.id !== distributorId) {
+      throw new AppError(409, 'Ya hay otra distribuidora registrada con ese RUT');
+    }
+  }
+  if (data.cedula) {
+    const existing = await prisma.distributor.findUnique({ where: { cedula: data.cedula } });
+    if (existing && existing.id !== distributorId) {
+      throw new AppError(409, 'Ya hay otra distribuidora registrada con esa Cédula');
+    }
+  }
+
+  return prisma.distributor.update({
+    where: { id: distributorId },
+    data,
+    select: { id: true, rut: true, cedula: true },
+  });
 }
 
 export async function updateCategories(

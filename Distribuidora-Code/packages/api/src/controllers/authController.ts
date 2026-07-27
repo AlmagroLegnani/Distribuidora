@@ -99,3 +99,16 @@ export async function updateSettings(
     next(err);
   }
 }
+
+export async function updateProfile(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const profile = await authService.updateProfile(req.distributorId!, req.body);
+    res.json(profile);
+  } catch (err) {
+    next(err);
+  }
+}

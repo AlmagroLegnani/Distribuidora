@@ -1,10 +1,13 @@
+import { IvaType } from '@prisma/client';
 import { sendMail } from '../lib/mailer';
+import { IVA_LABELS, ivaAmountFromFinalPrice } from '../lib/iva';
 
 interface OrderItem {
   product: { name: string };
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  ivaType: IvaType;
 }
 
 interface OrderNotificationData {
@@ -48,11 +51,37 @@ function buildOrderHtml(order: OrderNotificationData, forClient = false): string
       <tr>
         <td style="padding:8px;border:1px solid #e0e0e0;">${item.product.name}</td>
         <td style="padding:8px;border:1px solid #e0e0e0;text-align:center;">${item.quantity}</td>
+        <td style="padding:8px;border:1px solid #e0e0e0;text-align:center;">${IVA_LABELS[item.ivaType]}</td>
         <td style="padding:8px;border:1px solid #e0e0e0;text-align:right;">${formatCurrency(item.unitPrice)}</td>
         <td style="padding:8px;border:1px solid #e0e0e0;text-align:right;font-weight:bold;">${formatCurrency(item.subtotal)}</td>
       </tr>`
     )
     .join('');
+
+  // Discriminación de IVA por tasa — mismo cálculo que el comprobante PDF y
+  // la pantalla de confirmación del cliente: el precio ya incluye el IVA,
+  // así que se calcula "hacia atrás" cuánto de ese precio es impuesto.
+  const subtotalByIva: Record<IvaType, number> = { BASICA: 0, MINIMA: 0 };
+  for (const item of order.items) {
+    subtotalByIva[item.ivaType] += item.subtotal;
+  }
+  const ivaTypesUsed = (Object.keys(subtotalByIva) as IvaType[]).filter(
+    (t) => subtotalByIva[t] > 0
+  );
+  const ivaBreakdownHtml =
+    ivaTypesUsed.length > 0
+      ? `
+    <div style="padding:12px 15px;background:#f5f5f5;border-radius:6px;margin-bottom:20px;">
+      <p style="margin:0 0 6px;font-size:12px;font-weight:bold;color:#666;">Discriminación de IVA (incluido en el precio)</p>
+      ${ivaTypesUsed
+        .map((ivaType) => {
+          const subtotal = subtotalByIva[ivaType];
+          const ivaAmount = ivaAmountFromFinalPrice(subtotal, ivaType);
+          return `<p style="margin:2px 0;font-size:12px;color:#666;">${IVA_LABELS[ivaType]} — gravado: ${formatCurrency(subtotal)} · IVA contenido: ${formatCurrency(ivaAmount)}</p>`;
+        })
+        .join('')}
+    </div>`
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -65,7 +94,7 @@ function buildOrderHtml(order: OrderNotificationData, forClient = false): string
     <p><strong>Pedido #:</strong> ${shortId}</p>
     <p><strong>Fecha:</strong> ${new Date(order.createdAt).toLocaleString('es-UY')}</p>
     <p><strong>${documentLine(order.client).label}:</strong> ${documentLine(order.client).value}</p>
-    <p><strong>Empresa:</strong> ${order.client.name || 'No especificado'}</p>
+    <p><strong>Razón Social:</strong> ${order.client.name || 'No especificado'}</p>
     ${order.notes ? `<p><strong>Notas:</strong> ${order.notes}</p>` : ''}
     <h3 style="border-bottom:2px solid #1e3a5f;padding-bottom:8px;">Detalle del Pedido</h3>
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
@@ -73,17 +102,19 @@ function buildOrderHtml(order: OrderNotificationData, forClient = false): string
         <tr style="background:#f5f5f5;">
           <th style="padding:8px;border:1px solid #e0e0e0;text-align:left;">Producto</th>
           <th style="padding:8px;border:1px solid #e0e0e0;text-align:center;">Cantidad</th>
+          <th style="padding:8px;border:1px solid #e0e0e0;text-align:center;">IVA</th>
           <th style="padding:8px;border:1px solid #e0e0e0;text-align:right;">Precio Unit.</th>
           <th style="padding:8px;border:1px solid #e0e0e0;text-align:right;">Subtotal</th>
         </tr>
       </thead>
       <tbody>${itemRows}</tbody>
     </table>
-    <div style="text-align:right;padding:15px;background:#f0f7ff;border-radius:6px;">
+    <div style="text-align:right;padding:15px;background:#f0f7ff;border-radius:6px;margin-bottom:20px;">
       <span style="font-size:20px;font-weight:bold;color:#1e3a5f;">
         TOTAL: ${formatCurrency(order.total)}
       </span>
     </div>
+    ${ivaBreakdownHtml}
     ${
       forClient
         ? '<p style="margin-top:20px;color:#666;">Gracias por su pedido. Nos pondremos en contacto a la brevedad.</p>'
@@ -112,7 +143,7 @@ async function sendWhatsApp(order: OrderNotificationData, toNumber: string): Pro
     `🛒 *Nuevo Pedido Recibido*\n` +
     `📋 Pedido #${shortId}\n` +
     `👤 ${doc.label}: ${doc.value}\n` +
-    `🏢 Empresa: ${order.client.name || 'No especificado'}\n\n` +
+    `🏢 Razón Social: ${order.client.name || 'No especificado'}\n\n` +
     `Productos:\n${itemsList}\n\n` +
     `💰 *Total: ${formatCurrency(order.total)}*\n` +
     `📅 ${new Date(order.createdAt).toLocaleString('es-UY')}`;

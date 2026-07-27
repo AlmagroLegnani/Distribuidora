@@ -175,7 +175,7 @@ export default function OrderDetailPage() {
             </div>
           )}
           <div>
-            <span className="text-gray-500">Empresa:</span>
+            <span className="text-gray-500">Razón Social:</span>
             <span className="ml-2">{order.client.name || '—'}</span>
           </div>
           <div>

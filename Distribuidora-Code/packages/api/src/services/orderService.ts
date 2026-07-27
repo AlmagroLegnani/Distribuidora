@@ -1,4 +1,4 @@
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, IvaType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { classifyDocument } from '../lib/document';
@@ -80,7 +80,14 @@ export async function getOrderForReceipt(distributorId: string, orderId: string)
     where: { id: orderId, distributorId },
     include: {
       client: true,
-      distributor: { select: { name: true, phone: true, email: true } },
+      distributor: {
+        select: {
+          name: true,
+          phone: true,
+          email: true,
+          settings: { select: { sendClientEmail: true } },
+        },
+      },
       items: {
         include: { product: { select: { name: true, code: true } } },
       },
@@ -172,6 +179,7 @@ export async function createOrder(
       quantity: number;
       unitPrice: number;
       subtotal: number;
+      ivaType: IvaType;
     }[] = [];
 
     for (const item of items) {
@@ -200,6 +208,7 @@ export async function createOrder(
         quantity: item.quantity,
         unitPrice,
         subtotal,
+        ivaType: product.ivaType,
       });
 
       // 3. Decrement stock atomically

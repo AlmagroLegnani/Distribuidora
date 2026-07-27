@@ -10,6 +10,11 @@ interface Distributor {
   email: string;
   slug: string;
   active: boolean;
+  // false hasta que la distribuidora elige su propia contraseña — mientras
+  // tanto, "Reenviar acceso" le sirve si perdió el código de acceso original.
+  // Una vez que ya tiene su propia contraseña, puede recuperarla ella misma
+  // desde "¿Olvidaste tu contraseña?" en /login, así que ocultamos el botón.
+  passwordChanged: boolean;
   createdAt: string;
   subscription: {
     status: string;
@@ -37,7 +42,7 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Cancelada',
 };
 
-const EMPTY_CREATE_FORM = { name: '', email: '', phone: '', slug: '' };
+const EMPTY_CREATE_FORM = { name: '', email: '', phone: '', slug: '', rut: '', cedula: '' };
 
 function formatDate(date: string | null): string {
   if (!date) return '—';
@@ -141,6 +146,8 @@ export default function DistributorsPage() {
         email: createForm.email,
         phone: createForm.phone,
         slug: createForm.slug,
+        rut: createForm.rut || undefined,
+        cedula: createForm.cedula || undefined,
         planId: plan.id,
       });
       setCreatedResult({
@@ -201,6 +208,24 @@ export default function DistributorsPage() {
       alert(`Aviso enviado. Mensaje: "${result.message}"`);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error al enviar el aviso');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleResendAccess(id: string, name: string) {
+    if (
+      !confirm(
+        `¿Enviarle a ${name} un link por email para crear una contraseña nueva? Esto sirve si perdió el código de acceso original.`
+      )
+    )
+      return;
+    setBusyId(id);
+    try {
+      const result = await api.post<{ email: string }>(`/distributors/${id}/resend-access`, {});
+      alert(`Listo, le enviamos un link para crear su contraseña a ${result.email}.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al reenviar el acceso');
     } finally {
       setBusyId(null);
     }
@@ -294,6 +319,25 @@ export default function DistributorsPage() {
                     placeholder="distribuidora-norte"
                   />
                 </div>
+                <div>
+                  <label className="label">RUT (opcional)</label>
+                  <input
+                    className="input"
+                    value={createForm.rut}
+                    onChange={(e) => setCreateForm({ ...createForm, rut: e.target.value })}
+                    placeholder="21-123456-0019"
+                  />
+                </div>
+                <div>
+                  <label className="label">Cédula (opcional)</label>
+                  <input
+                    className="input"
+                    value={createForm.cedula}
+                    onChange={(e) => setCreateForm({ ...createForm, cedula: e.target.value })}
+                    placeholder="1.234.567-8"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Cargá RUT o Cédula, lo que tenga la distribuidora.</p>
+                </div>
               </div>
               <p className="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg p-2">
                 {plan
@@ -386,6 +430,16 @@ export default function DistributorsPage() {
                             className="text-xs text-green-700 hover:text-green-800 font-medium"
                           >
                             Marcar pagado
+                          </button>
+                        )}
+                        {!d.passwordChanged && (
+                          <button
+                            onClick={() => handleResendAccess(d.id, d.name)}
+                            disabled={busyId === d.id}
+                            title="Enviarle un link por email para crear una contraseña nueva (por si perdió el código de acceso)"
+                            className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                          >
+                            Reenviar acceso
                           </button>
                         )}
                         {d.active ? (

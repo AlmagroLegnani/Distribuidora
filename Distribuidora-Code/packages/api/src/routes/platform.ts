@@ -60,6 +60,15 @@ router.post(
   platformController.notifyPaymentDue
 );
 
+// POST /api/platform/distributors/:id/resend-access — reenvía un link de
+// "crear contraseña" (mismo flujo que "olvidé mi contraseña") por si la
+// distribuidora perdió el código de acceso original
+router.post(
+  '/distributors/:id/resend-access',
+  platformAuthMiddleware,
+  platformController.resendAccess
+);
+
 // GET /api/platform/plans
 router.get('/plans', platformAuthMiddleware, platformController.listPlans);
 
