@@ -50,14 +50,13 @@ async function main(): Promise<void> {
 
   const distributor = await prisma.distributor.upsert({
     where: { email: 'demo@stockapp.com' },
-    update: { categories: ['Alimentos No Perecederos', 'Lácteos y Fríos', 'Limpieza e Higiene'] },
+    update: {},
     create: {
       name: 'Distribuidora Norte',
       email: 'demo@stockapp.com',
       password: hashedPassword,
       phone: '+598 2900 1234',
       slug: 'demo',
-      categories: ['Alimentos No Perecederos', 'Lácteos y Fríos', 'Limpieza e Higiene'],
       settings: {
         create: {
           notificationEmail: 'demo@stockapp.com',

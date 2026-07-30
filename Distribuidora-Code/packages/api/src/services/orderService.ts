@@ -1,7 +1,7 @@
 import { OrderStatus, IvaType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
-import { classifyDocument } from '../lib/document';
+import { classifyDocument, normalizeDocumento } from '../lib/document';
 import { checkLowStock } from './stockAlertService';
 import { applyDiscount } from './clientPriceService';
 import type { PaginationParams } from '../lib/pagination';
@@ -102,7 +102,10 @@ export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus
 ) {
-  const order = await prisma.order.findFirst({ where: { id: orderId, distributorId } });
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, distributorId },
+    include: { items: true },
+  });
   if (!order) throw new AppError(404, 'Order not found');
 
   // Prevent changing from CANCELLED or COMPLETED back to earlier states
@@ -110,13 +113,33 @@ export async function updateOrderStatus(
     throw new AppError(400, 'Cannot change status of a cancelled order');
   }
 
-  return prisma.order.update({
-    where: { id: orderId },
-    data: { status },
-    include: {
-      client: true,
-      items: { include: { product: { select: { name: true } } } },
-    },
+  // Al cancelar un pedido que todavía no estaba cancelado, reponemos el
+  // stock que se había descontado al crearlo — antes quedaba descontado
+  // para siempre (el inventario se desincronizaba en cada cancelación, sin
+  // ningún aviso). Se hace en la misma transacción que el cambio de estado
+  // para que no pueda quedar el stock repuesto sin el pedido cancelado (o
+  // viceversa). Es idempotente: si el pedido ya estaba CANCELLED no se
+  // vuelve a reponer nada.
+  const isNewlyCancelled = status === 'CANCELLED' && order.status !== 'CANCELLED';
+
+  return prisma.$transaction(async (tx) => {
+    if (isNewlyCancelled) {
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+    }
+
+    return tx.order.update({
+      where: { id: orderId },
+      data: { status },
+      include: {
+        client: true,
+        items: { include: { product: { select: { name: true } } } },
+      },
+    });
   });
 }
 
@@ -124,7 +147,12 @@ export async function createOrder(
   distributorId: string,
   input: CreatePublicOrderInput
 ): Promise<ReturnType<typeof getOrderById>> {
-  const { documento, clientName, clientEmail, clientPhone, items, notes } = input;
+  const { clientName, clientEmail, clientPhone, items, notes } = input;
+  // Normalizado a solo dígitos: así matchea siempre con lo que guarda el
+  // panel de distribuidora (rut/cedula ya se guardan sin puntos ni guiones,
+  // ver `onlyDigits` en validations/schemas.ts), sin importar si el cliente
+  // lo escribió con formato (ej. "21-123456-0019") en el carrito.
+  const documento = normalizeDocumento(input.documento);
 
   const order = await prisma.$transaction(async (tx) => {
     // 1. Find or create the client (upsert by distributorId + documento, matching either rut or cedula)
@@ -244,7 +272,7 @@ export async function createOrder(
     await checkLowStock(distributorId, productId);
   }
 
-  return order as ReturnType<typeof getOrderById>;
+  return order as Awaited<ReturnType<typeof getOrderById>>;
 }
 
 /**

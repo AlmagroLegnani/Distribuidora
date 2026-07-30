@@ -3,12 +3,14 @@
 import { useEffect, useState, useCallback, FormEvent } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/platform/api';
+import { URUGUAY_DEPARTMENTS } from '@/lib/uruguayDepartments';
 
 interface Distributor {
   id: string;
   name: string;
   email: string;
   slug: string;
+  city: string | null;
   active: boolean;
   // false hasta que la distribuidora elige su propia contraseña — mientras
   // tanto, "Reenviar acceso" le sirve si perdió el código de acceso original.
@@ -42,7 +44,16 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Cancelada',
 };
 
-const EMPTY_CREATE_FORM = { name: '', email: '', phone: '', slug: '', rut: '', cedula: '' };
+const EMPTY_CREATE_FORM = {
+  name: '',
+  email: '',
+  phone: '',
+  slug: '',
+  rut: '',
+  cedula: '',
+  address: '',
+  city: '',
+};
 
 function formatDate(date: string | null): string {
   if (!date) return '—';
@@ -148,6 +159,8 @@ export default function DistributorsPage() {
         slug: createForm.slug,
         rut: createForm.rut || undefined,
         cedula: createForm.cedula || undefined,
+        address: createForm.address || undefined,
+        city: createForm.city || undefined,
         planId: plan.id,
       });
       setCreatedResult({
@@ -338,6 +351,33 @@ export default function DistributorsPage() {
                   />
                   <p className="text-xs text-gray-400 mt-1">Cargá RUT o Cédula, lo que tenga la distribuidora.</p>
                 </div>
+                <div className="col-span-2">
+                  <label className="label">Dirección (opcional)</label>
+                  <input
+                    className="input"
+                    value={createForm.address}
+                    onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                    placeholder="Ej: Av. 18 de Julio 1234"
+                  />
+                </div>
+                <div>
+                  <label className="label">Ciudad / Departamento (opcional)</label>
+                  <select
+                    className="input"
+                    value={createForm.city}
+                    onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })}
+                  >
+                    <option value="">Sin especificar</option>
+                    {URUGUAY_DEPARTMENTS.map((dep) => (
+                      <option key={dep} value={dep}>
+                        {dep}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    El cliente va a poder filtrar por esto en "Elegí tu distribuidora".
+                  </p>
+                </div>
               </div>
               <p className="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg p-2">
                 {plan
@@ -390,7 +430,10 @@ export default function DistributorsPage() {
                         <Link href={`/platform/distributors/${d.id}`} className="font-medium text-gray-900 hover:text-blue-600">
                           {d.name}
                         </Link>
-                        <div className="text-xs text-gray-400">{d.email} · /{d.slug}</div>
+                        <div className="text-xs text-gray-400">
+                          {d.email} · /{d.slug}
+                          {d.city && ` · ${d.city}`}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {sub ? `${sub.plan.name} — ${formatCurrency(sub.plan.price, sub.plan.currency)}/mes` : 'Sin plan'}

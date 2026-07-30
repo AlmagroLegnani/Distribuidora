@@ -69,3 +69,17 @@ export function classifyDocument(input: string): 'rut' | 'cedula' | null {
   if (validateCedula(input)) return 'cedula';
   return null;
 }
+
+/**
+ * Forma canónica de un RUT/Cédula: solo dígitos, sin puntos ni guiones.
+ * Es la misma forma en la que el panel de distribuidora guarda `rut`/`cedula`
+ * (ver `onlyDigits` en validations/schemas.ts) — hay que normalizar cualquier
+ * "documento" que llegue del lado público (catálogo, carrito, historial de
+ * pedidos) con esta función antes de compararlo o guardarlo, así un cliente
+ * ya cargado por la distribuidora (dígitos limpios) siempre matchea con lo
+ * que el cliente escribe en el carrito (que puede venir con guiones/puntos,
+ * por ejemplo vía `formatDocument` en el frontend).
+ */
+export function normalizeDocumento(input: string): string {
+  return (input || '').replace(/\D/g, '');
+}

@@ -20,6 +20,8 @@ interface DistributorDetail {
   email: string;
   slug: string;
   phone: string | null;
+  address: string | null;
+  city: string | null;
   active: boolean;
   // Igual que en la lista: una vez que la distribuidora eligió su propia
   // contraseña, ya puede recuperarla ella misma desde /login, así que se
@@ -157,6 +159,13 @@ export default function DistributorDetailPage() {
           <p className="text-sm text-gray-500 mt-0.5">
             {distributor.email} · /{distributor.slug} {distributor.phone && `· ${distributor.phone}`}
           </p>
+          {(distributor.city || distributor.address) && (
+            <p className="text-sm text-gray-500 mt-0.5">
+              {distributor.address && <span>{distributor.address}</span>}
+              {distributor.address && distributor.city && <span> · </span>}
+              {distributor.city && <span>{distributor.city}</span>}
+            </p>
+          )}
         </div>
         <span
           className={`text-xs font-medium px-2.5 py-1 rounded-full ${

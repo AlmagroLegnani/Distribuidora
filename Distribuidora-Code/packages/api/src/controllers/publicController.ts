@@ -13,14 +13,14 @@ export async function listDistributors(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { category } = req.query as Record<string, string | undefined>;
+    const { city } = req.query as Record<string, string | undefined>;
 
     const distributors = await prisma.distributor.findMany({
       where: {
         active: true,
-        ...(category && { categories: { has: category } }),
+        ...(city && { city }),
       },
-      select: { id: true, name: true, slug: true, logoUrl: true, categories: true },
+      select: { id: true, name: true, slug: true, logoUrl: true, city: true },
       orderBy: { name: 'asc' },
     });
 
@@ -174,7 +174,16 @@ export async function getPublicProducts(
       return { ...p, originalPrice: null };
     });
 
-    res.json(productsWithPricing);
+    // Si el navegador mandó documento+código (ya pasó el AccessGate) pero
+    // igual no se pudo identificar al cliente, es porque el código guardado
+    // quedó desactualizado (por ejemplo, la distribuidora lo reenvió/renovó
+    // después de que el cliente ya había entrado). Antes esto pasaba
+    // desapercibido: el catálogo se veía normal, solo que sin los precios
+    // especiales, sin ningún aviso. Con este flag el frontend puede mostrar
+    // un cartel pidiendo volver a ingresar el código.
+    const accessVerified = !(documento && code && !client);
+
+    res.json({ products: productsWithPricing, accessVerified });
   } catch (err) {
     next(err);
   }

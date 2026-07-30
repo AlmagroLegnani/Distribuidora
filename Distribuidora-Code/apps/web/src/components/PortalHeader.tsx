@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
-import { formatCurrency } from '@/lib/cart';
-import { loadAccess } from '@/lib/access';
+import { formatCurrency, clearCart } from '@/lib/cart';
+import { loadAccess, clearAccess } from '@/lib/access';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
 
 interface Distributor {
@@ -32,6 +32,17 @@ export default function PortalHeader({
     const access = loadAccess(slug);
     setClientLabel(access?.clientName ?? null);
   }, [slug]);
+
+  // Vuelve a pedir el código de acceso — pensado para poder entrar y salir
+  // como distintos clientes al probar (además de servir si el cliente real
+  // quiere cerrar sesión en un dispositivo compartido). También limpia el
+  // carrito, que queda guardado por distribuidora y no por cliente.
+  function handleLogout() {
+    if (!confirm('¿Cerrar sesión? Vas a tener que volver a ingresar el código de acceso.')) return;
+    clearAccess(slug);
+    clearCart(slug);
+    window.location.href = `/${slug}`;
+  }
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
@@ -96,6 +107,14 @@ export default function PortalHeader({
           >
             Cambiar de distribuidora
           </Link>
+
+          <button
+            onClick={handleLogout}
+            title="Cerrar sesión y volver a pedir el código de acceso"
+            className="text-xs text-gray-400 hover:text-red-600 hidden sm:inline-flex"
+          >
+            Cerrar sesión
+          </button>
         </div>
       </div>
 
@@ -131,6 +150,20 @@ export default function PortalHeader({
           </svg>
           <span className="text-[11px] font-medium">Cambiar distribuidora</span>
         </Link>
+        <button
+          onClick={handleLogout}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-gray-600 active:bg-gray-50 border-l border-gray-100"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+            />
+          </svg>
+          <span className="text-[11px] font-medium">Cerrar sesión</span>
+        </button>
       </nav>
 
       {/* Botón flotante de WhatsApp: solo para consultas puntuales, no para

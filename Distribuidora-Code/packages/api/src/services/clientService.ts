@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { generateAccessCode } from '../lib/accessCode';
+import { normalizeDocumento } from '../lib/document';
 import { sendMail } from '../lib/mailer';
 import type { PaginationParams } from '../lib/pagination';
 import type { CreateClientInput, UpdateClientInput } from '../validations/schemas';
@@ -141,8 +142,9 @@ export async function deactivateClient(distributorId: string, clientId: string) 
  * history, contact lookup).
  */
 export async function verifyClientAccessCode(distributorId: string, documento: string, code: string) {
+  const doc = normalizeDocumento(documento);
   const client = await prisma.client.findFirst({
-    where: { distributorId, OR: [{ rut: documento }, { cedula: documento }] },
+    where: { distributorId, OR: [{ rut: doc }, { cedula: doc }] },
   });
 
   if (!client || !client.active) {
