@@ -57,7 +57,7 @@ export default function ProductsPage() {
   const [formError, setFormError] = useState('');
   const [inlineStock, setInlineStock] = useState<Record<string, string>>({});
   const [updatingStock, setUpdatingStock] = useState<string | null>(null);
-  const searchTimeout = useRef<NodeJS.Timeout>();
+  const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const fetchProducts = useCallback(async (q?: string) => {
     setLoading(true);

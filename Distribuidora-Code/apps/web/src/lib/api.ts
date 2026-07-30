@@ -50,7 +50,7 @@ export interface DistributorListItem {
   name: string;
   slug: string;
   logoUrl: string | null;
-  categories: string[];
+  city: string | null;
 }
 
 export interface ClientOrder {
@@ -110,9 +110,8 @@ export async function getDistributor(slug: string): Promise<Distributor> {
   return apiFetch<Distributor>(`/public/${slug}`);
 }
 
-export async function getDistributors(category?: string): Promise<DistributorListItem[]> {
-  const params = category ? `?${new URLSearchParams({ category }).toString()}` : '';
-  return apiFetch<DistributorListItem[]>(`/public/distributors${params}`);
+export async function getDistributors(): Promise<DistributorListItem[]> {
+  return apiFetch<DistributorListItem[]>(`/public/distributors`);
 }
 
 export async function verifyAccessCode(
@@ -135,12 +134,21 @@ export async function getClientOrders(
   return apiFetch<ClientOrder[]>(`/public/${slug}/orders?${params.toString()}`);
 }
 
+export interface ProductsResponse {
+  products: Product[];
+  /** false si el documento/código guardado ya no identifica a ningún cliente
+   * (por ejemplo, la distribuidora renovó el código después de que el
+   * cliente ya había entrado) — el catálogo igual se muestra, pero con
+   * precios de lista, sin los descuentos especiales de ese cliente. */
+  accessVerified: boolean;
+}
+
 export async function getProducts(
   slug: string,
   search?: string,
   category?: string,
   brand?: string
-): Promise<Product[]> {
+): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (category) params.set('category', category);
@@ -153,7 +161,7 @@ export async function getProducts(
     params.set('documento', access.documento);
     params.set('code', access.code);
   }
-  return apiFetch<Product[]>(`/public/${slug}/products?${params.toString()}`);
+  return apiFetch<ProductsResponse>(`/public/${slug}/products?${params.toString()}`);
 }
 
 export async function getClientByDocumento(

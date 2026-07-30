@@ -10,12 +10,33 @@ import {
   markPaidSchema,
   createDistributorSchema,
   updateContactRequestStatusSchema,
+  updatePlatformProfileSchema,
+  changePlatformPasswordSchema,
 } from '../validations/schemas';
 
 const router = Router();
 
 // POST /api/platform/auth/login
 router.post('/auth/login', authLimiter, validate(loginSchema), platformController.login);
+
+// GET /api/platform/auth/me — perfil de la cuenta de super admin logueada
+router.get('/auth/me', platformAuthMiddleware, platformController.getProfile);
+
+// PUT /api/platform/auth/profile — cambiar el email de la cuenta propia
+router.put(
+  '/auth/profile',
+  platformAuthMiddleware,
+  validate(updatePlatformProfileSchema),
+  platformController.updateProfile
+);
+
+// PUT /api/platform/auth/change-password — cambiar la contraseña propia
+router.put(
+  '/auth/change-password',
+  platformAuthMiddleware,
+  validate(changePlatformPasswordSchema),
+  platformController.changePassword
+);
 
 // GET /api/platform/distributors
 router.get('/distributors', platformAuthMiddleware, platformController.listDistributors);

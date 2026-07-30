@@ -9,6 +9,7 @@ export default function DistribuidorasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [city, setCity] = useState('');
 
   useEffect(() => {
     getDistributors()
@@ -17,9 +18,19 @@ export default function DistribuidorasPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const visibleDistributors = search.trim()
-    ? distributors.filter((d) => d.name.toLowerCase().includes(search.trim().toLowerCase()))
-    : distributors;
+  // Solo mostramos en el desplegable las ciudades que efectivamente tienen
+  // alguna distribuidora activa cargada, no las 19 del país entero.
+  const availableCities = Array.from(
+    new Set(distributors.map((d) => d.city).filter((c): c is string => Boolean(c)))
+  ).sort((a, b) => a.localeCompare(b, 'es'));
+
+  const visibleDistributors = distributors.filter((d) => {
+    const matchesSearch = search.trim()
+      ? d.name.toLowerCase().includes(search.trim().toLowerCase())
+      : true;
+    const matchesCity = city ? d.city === city : true;
+    return matchesSearch && matchesCity;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -35,28 +46,40 @@ export default function DistribuidorasPage() {
         </div>
 
         {!loading && !error && distributors.length > 0 && (
-          <div className="relative max-w-sm mx-auto mb-8">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          <div className="max-w-sm mx-auto mb-8 space-y-3">
+            <div className="relative">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar distribuidora por nombre..."
+                className="input pl-9"
+                autoFocus
               />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar distribuidora por nombre..."
-              className="input pl-9"
-              autoFocus
-            />
+            </div>
+            {availableCities.length > 0 && (
+              <select value={city} onChange={(e) => setCity(e.target.value)} className="input">
+                <option value="">Todas las ciudades</option>
+                {availableCities.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 
@@ -72,7 +95,7 @@ export default function DistribuidorasPage() {
           </div>
         ) : visibleDistributors.length === 0 ? (
           <div className="text-center text-sm text-gray-500">
-            No encontramos ninguna distribuidora con ese nombre.
+            No encontramos ninguna distribuidora con ese nombre{city ? ` en ${city}` : ''}.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -96,6 +119,7 @@ export default function DistribuidorasPage() {
                 )}
                 <div>
                   <div className="font-semibold text-gray-900">{d.name}</div>
+                  {d.city && <div className="text-xs text-gray-500 mt-0.5">{d.city}</div>}
                   <div className="text-xs text-gray-400 mt-0.5">Ver catálogo →</div>
                 </div>
               </Link>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/admin/api';
+import { URUGUAY_DEPARTMENTS } from '@/lib/uruguayDepartments';
 
 interface Settings {
   notificationEmail: string | null;
@@ -43,6 +44,8 @@ interface PasswordForm {
 interface ProfileForm {
   rut: string;
   cedula: string;
+  address: string;
+  city: string;
 }
 
 export default function SettingsPage() {
@@ -72,7 +75,7 @@ export default function SettingsPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
 
-  const [profile, setProfile] = useState<ProfileForm>({ rut: '', cedula: '' });
+  const [profile, setProfile] = useState<ProfileForm>({ rut: '', cedula: '', address: '', city: '' });
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
 
@@ -85,6 +88,8 @@ export default function SettingsPage() {
         subscription: Subscription | null;
         rut: string | null;
         cedula: string | null;
+        address: string | null;
+        city: string | null;
         passwordChanged: boolean;
       }>('/auth/me')
       .then((data) => {
@@ -97,7 +102,12 @@ export default function SettingsPage() {
           });
         }
         setSubscription(data.subscription);
-        setProfile({ rut: data.rut || '', cedula: data.cedula || '' });
+        setProfile({
+          rut: data.rut || '',
+          cedula: data.cedula || '',
+          address: data.address || '',
+          city: data.city || '',
+        });
         setPasswordChanged(data.passwordChanged);
       })
       .catch(console.error)
@@ -142,6 +152,8 @@ export default function SettingsPage() {
       await api.put('/auth/profile', {
         rut: profile.rut || null,
         cedula: profile.cedula || null,
+        address: profile.address || null,
+        city: profile.city || null,
       });
       setProfileMsg('Datos guardados.');
     } catch (err) {
@@ -316,8 +328,35 @@ export default function SettingsPage() {
               className="input"
             />
           </div>
+          <div className="col-span-2">
+            <label className="label">Dirección</label>
+            <input
+              value={profile.address}
+              onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+              placeholder="Ej: Av. 18 de Julio 1234"
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="label">Ciudad / Departamento</label>
+            <select
+              value={profile.city}
+              onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+              className="input"
+            >
+              <option value="">Sin especificar</option>
+              {URUGUAY_DEPARTMENTS.map((dep) => (
+                <option key={dep} value={dep}>
+                  {dep}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <p className="text-xs text-gray-400">Cargá RUT o Cédula, lo que tenga tu negocio.</p>
+        <p className="text-xs text-gray-400">
+          Cargá RUT o Cédula, lo que tenga tu negocio. La ciudad es la que el cliente va a poder usar
+          para filtrarte en "Elegí tu distribuidora".
+        </p>
 
         {profileMsg && (
           <div

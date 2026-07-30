@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { getProducts, type Product } from '@/lib/api';
+import { clearAccess } from '@/lib/access';
 import ProductCard from '@/components/ProductCard';
 
 export default function CatalogPage() {
@@ -10,24 +11,26 @@ export default function CatalogPage() {
   const slug = params.slug as string;
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [accessVerified, setAccessVerified] = useState(true);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [brand, setBrand] = useState('');
   const [brands, setBrands] = useState<string[]>([]);
-  const searchTimeout = useRef<NodeJS.Timeout>();
+  const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const fetchProducts = useCallback(
     async (q?: string, cat?: string, br?: string) => {
       setLoading(true);
       try {
         const data = await getProducts(slug, q, cat, br);
-        setProducts(data);
+        setProducts(data.products);
+        setAccessVerified(data.accessVerified);
         // Extract categories y marcas disponibles a partir de lo que devolvió el catálogo
-        const cats = Array.from(new Set(data.map((p) => p.category).filter(Boolean))) as string[];
+        const cats = Array.from(new Set(data.products.map((p) => p.category).filter(Boolean))) as string[];
         setCategories(cats);
-        const brs = Array.from(new Set(data.map((p) => p.brand).filter(Boolean))) as string[];
+        const brs = Array.from(new Set(data.products.map((p) => p.brand).filter(Boolean))) as string[];
         setBrands(brs);
       } catch (err) {
         console.error(err);
@@ -37,6 +40,11 @@ export default function CatalogPage() {
     },
     [slug]
   );
+
+  function handleReenterCode() {
+    clearAccess(slug);
+    window.location.reload();
+  }
 
   useEffect(() => {
     fetchProducts();
@@ -60,6 +68,21 @@ export default function CatalogPage() {
 
   return (
     <div className="space-y-5">
+      {!accessVerified && (
+        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center justify-between gap-3 flex-wrap">
+          <span>
+            No pudimos verificar tu acceso — puede que tu código de acceso haya cambiado. Estás viendo
+            precios de lista, sin tus descuentos especiales.
+          </span>
+          <button
+            onClick={handleReenterCode}
+            className="text-xs font-semibold text-amber-900 underline hover:no-underline whitespace-nowrap"
+          >
+            Volver a ingresar tu código
+          </button>
+        </div>
+      )}
+
       {/* Search & filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

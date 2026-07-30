@@ -12,6 +12,45 @@ export async function login(req: PlatformAuthRequest, res: Response, next: NextF
   }
 }
 
+export async function getProfile(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const admin = await platformService.getProfile(req.platformAdminId!);
+    res.json(admin);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateProfile(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const admin = await platformService.updateProfile(req.platformAdminId!, req.body);
+    res.json(admin);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function changePassword(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    await platformService.changeMyPassword(req.platformAdminId!, req.body.currentPassword, req.body.newPassword);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listDistributors(
   _req: PlatformAuthRequest,
   res: Response,

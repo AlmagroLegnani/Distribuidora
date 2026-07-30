@@ -16,13 +16,14 @@ model Distributor {
   phone     String?
   rut       String?  @unique // RUT de la distribuidora, si tiene
   cedula    String?  @unique // Cédula de identidad, para distribuidoras unipersonales sin RUT
+  address   String? // dirección del local/depósito, texto libre
+  city      String? // departamento de Uruguay (lista fija, ver lib/uruguayDepartments.ts) — usado para filtrar distribuidoras por zona en /distribuidoras
   // false hasta que la distribuidora elige su propia contraseña (al crearla,
   // "password" es en realidad el código de acceso que le mandamos por email).
   // Se usa para saber si mostrarle "Creá tu contraseña" o "Cambiar contraseña".
   passwordChanged Boolean @default(false)
   logoUrl   String?
   slug      String   @unique // identificador único de URL ej: "distrib-norte"
-  categories String[] @default([]) // rubros de la distribuidora (multi-select), ej: "Bebidas", "Limpieza e Higiene"
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

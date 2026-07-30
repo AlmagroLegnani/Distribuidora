@@ -22,6 +22,7 @@ import type {
   UpdatePlanInput,
   MarkPaidInput,
   CreateDistributorInput,
+  UpdatePlatformProfileInput,
 } from '../validations/schemas';
 
 const BCRYPT_ROUNDS = 10;
@@ -44,6 +45,48 @@ export async function login(input: LoginInput): Promise<{ token: string; admin: 
   );
 
   return { token, admin: { id: admin.id, email: admin.email, name: admin.name } };
+}
+
+// ─── "Mi cuenta" — perfil del super admin logueado ─────────────────────────
+// Todas las cuentas de super admin ven exactamente lo mismo (no hay
+// separación de datos por cuenta): esto es solo para que cada uno pueda
+// tener su propio email/contraseña en vez de compartir una única cuenta.
+
+export async function getProfile(platformAdminId: string) {
+  const admin = await prisma.platformAdmin.findUnique({
+    where: { id: platformAdminId },
+    select: { id: true, email: true, name: true },
+  });
+  if (!admin) throw new AppError(404, 'Platform admin not found');
+  return admin;
+}
+
+export async function updateProfile(platformAdminId: string, data: UpdatePlatformProfileInput) {
+  const existing = await prisma.platformAdmin.findUnique({ where: { email: data.email } });
+  if (existing && existing.id !== platformAdminId) {
+    throw new AppError(409, 'Ya hay una cuenta de super admin registrada con ese email');
+  }
+
+  return prisma.platformAdmin.update({
+    where: { id: platformAdminId },
+    data: { email: data.email },
+    select: { id: true, email: true, name: true },
+  });
+}
+
+export async function changeMyPassword(
+  platformAdminId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  const admin = await prisma.platformAdmin.findUnique({ where: { id: platformAdminId } });
+  if (!admin) throw new AppError(404, 'Platform admin not found');
+
+  const match = await bcrypt.compare(currentPassword, admin.password);
+  if (!match) throw new AppError(401, 'La contraseña actual es incorrecta');
+
+  const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  await prisma.platformAdmin.update({ where: { id: platformAdminId }, data: { password: hashed } });
 }
 
 export async function listDistributors() {
@@ -114,6 +157,8 @@ export async function createDistributor(input: CreateDistributorInput) {
       phone: input.phone,
       rut: input.rut || null,
       cedula: input.cedula || null,
+      address: input.address || null,
+      city: input.city || null,
       slug: input.slug,
       active: true,
     },

@@ -87,8 +87,9 @@ export async function getProfile(distributorId: string): Promise<object> {
       phone: true,
       rut: true,
       cedula: true,
+      address: true,
+      city: true,
       passwordChanged: true,
-      categories: true,
       active: true,
       createdAt: true,
       settings: true,
@@ -207,7 +208,7 @@ export async function updateSettings(
 
 export async function updateProfile(
   distributorId: string,
-  data: { rut?: string | null; cedula?: string | null }
+  data: { rut?: string | null; cedula?: string | null; address?: string | null; city?: string | null }
 ): Promise<object> {
   if (data.rut) {
     const existing = await prisma.distributor.findUnique({ where: { rut: data.rut } });
@@ -225,17 +226,7 @@ export async function updateProfile(
   return prisma.distributor.update({
     where: { id: distributorId },
     data,
-    select: { id: true, rut: true, cedula: true },
+    select: { id: true, rut: true, cedula: true, address: true, city: true },
   });
 }
 
-export async function updateCategories(
-  distributorId: string,
-  categories: string[]
-): Promise<{ categories: string[] }> {
-  return prisma.distributor.update({
-    where: { id: distributorId },
-    data: { categories },
-    select: { categories: true },
-  });
-}

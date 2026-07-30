@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DISTRIBUTOR_CATEGORIES } from '../lib/distributorCategories';
+import { URUGUAY_DEPARTMENTS } from '../lib/uruguayDepartments';
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
 export const loginSchema = z.object({
@@ -67,7 +67,7 @@ export const orderStatusSchema = z.object({
 
 // ─── Public order creation ─────────────────────────────────────────────────
 export const createPublicOrderSchema = z.object({
-  documento: z.string().min(7, 'RUT o Cédula es obligatorio').max(12),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
   clientName: z.string().max(200).optional(),
   clientEmail: z.string().email().optional().nullable(),
   clientPhone: z.string().max(20).optional().nullable(),
@@ -144,6 +144,11 @@ export const createDistributorSchema = z.object({
   // Igual que en Client: opcional, uno u otro, se limpia a solo dígitos.
   rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
   cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
+  // Dirección de texto libre (no se usa para filtrar) + departamento de una
+  // lista fija (sí se usa para filtrar en /distribuidoras) — ambos opcionales
+  // porque hay distribuidoras ya cargadas sin este dato.
+  address: z.string().max(300).optional().nullable(),
+  city: z.enum(URUGUAY_DEPARTMENTS).optional().nullable(),
   planId: z.string().cuid('Invalid plan ID'),
 });
 
@@ -171,7 +176,7 @@ export const resetPasswordSchema = z.object({
 // ─── Public catalog access ──────────────────────────────────────────────────
 export const verifyAccessCodeSchema = z.object({
   code: z.string().min(1, 'Code is required'),
-  documento: z.string().min(7, 'RUT o Cédula es obligatorio').max(12),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
 });
 
 // ─── Settings ─────────────────────────────────────────────────────────────
@@ -188,12 +193,8 @@ export const updateSettingsSchema = z.object({
 export const updateDistributorProfileSchema = z.object({
   rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
   cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
-});
-
-export const updateCategoriesSchema = z.object({
-  categories: z
-    .array(z.enum(DISTRIBUTOR_CATEGORIES))
-    .min(1, 'Selecciona al menos un rubro'),
+  address: z.string().max(300).optional().nullable(),
+  city: z.enum(URUGUAY_DEPARTMENTS).optional().nullable(),
 });
 
 export const changePasswordSchema = z.object({
@@ -205,6 +206,19 @@ export const changePasswordSchema = z.object({
   newPassword: z
     .string()
     .min(8, 'New password must be at least 8 characters'),
+});
+
+// ─── Platform admin (super admin) — "Mi cuenta" ────────────────────────────
+// A diferencia del distribuidor, acá siempre exigimos la contraseña actual:
+// las cuentas de super admin se crean por script/seed con una contraseña ya
+// definida (no hay un "código de acceso" inicial sin contraseña real).
+export const updatePlatformProfileSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
+
+export const changePlatformPasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Ingresá tu contraseña actual'),
+  newPassword: z.string().min(8, 'La nueva contraseña debe tener al menos 8 caracteres'),
 });
 
 // ─── Inferred types ────────────────────────────────────────────────────────
@@ -227,3 +241,5 @@ export type UpdateContactRequestStatusInput = z.infer<typeof updateContactReques
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type UpdatePlatformProfileInput = z.infer<typeof updatePlatformProfileSchema>;
+export type ChangePlatformPasswordInput = z.infer<typeof changePlatformPasswordSchema>;
