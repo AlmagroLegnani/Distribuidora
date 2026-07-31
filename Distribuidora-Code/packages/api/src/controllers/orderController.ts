@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import * as orderService from '../services/orderService';
 import { AuthRequest } from '../middleware/auth';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus } from '@stockapp/db';
 import { parsePagination } from '../lib/pagination';
 import { buildOrderReceiptPdf } from '../lib/receiptPdf';
 import { sendMail } from '../lib/mailer';

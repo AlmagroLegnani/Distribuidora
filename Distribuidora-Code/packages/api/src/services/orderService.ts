@@ -1,4 +1,4 @@
-import { OrderStatus, IvaType } from '@prisma/client';
+import { OrderStatus, IvaType } from '@stockapp/db';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { classifyDocument, normalizeDocumento } from '../lib/document';

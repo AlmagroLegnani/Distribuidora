@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/cart';
@@ -8,6 +8,14 @@ import { IVA_LABELS, ivaAmountFromFinalPrice } from '@/lib/iva';
 import type { IvaType, OrderResult } from '@/lib/api';
 
 export default function ConfirmPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConfirmPageInner />
+    </Suspense>
+  );
+}
+
+function ConfirmPageInner() {
   const params = useParams();
   const slug = params.slug as string;
   const searchParams = useSearchParams();
