@@ -32,3 +32,5 @@ yarn-error.log*
 
 # prisma
 packages/db/prisma/migrations/*.sql
+.vercel
+.env*
