@@ -36,6 +36,7 @@ model Distributor {
   resetTokens  PasswordResetToken[]
   stockAlerts  StockAlert[]
   clientPrices ClientPrice[]
+  impersonations ImpersonationLog[]
 }
 
 // Administrador de la plataforma (dueño del SaaS, no un distribuidor)
@@ -45,6 +46,21 @@ model PlatformAdmin {
   password  String   // hash bcrypt
   name      String?
   createdAt DateTime @default(now())
+
+  impersonations ImpersonationLog[]
+}
+
+// Auditoría de "Entrar como esta distribuidora": queda registrado qué cuenta
+// de super admin entró al panel de qué distribuidora y cuándo, para que ese
+// acceso de soporte quede prolijo y trazable (nunca se guarda ni se necesita
+// ver la contraseña real de la distribuidora para esto).
+model ImpersonationLog {
+  id              String   @id @default(cuid())
+  platformAdminId String
+  platformAdmin   PlatformAdmin @relation(fields: [platformAdminId], references: [id])
+  distributorId   String
+  distributor     Distributor   @relation(fields: [distributorId], references: [id])
+  createdAt       DateTime      @default(now())
 }
 
 // Plan comercial ofrecido a las distribuidoras
@@ -190,6 +206,7 @@ model Client {
   name             String?
   email            String?
   phone            String?
+  address          String? // dirección del comercio/almacén, para reparto
   accessCode       String? // código individual para acceder al catálogo, enviado por email
   accessCodeSentAt DateTime?
   active           Boolean     @default(true)

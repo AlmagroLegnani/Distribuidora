@@ -81,6 +81,15 @@ router.post(
   platformController.notifyPaymentDue
 );
 
+// POST /api/platform/distributors/:id/impersonate — "Entrar como esta
+// distribuidora": genera un token de soporte de corta duración, sin pedir ni
+// ver su contraseña real, y queda registrado en ImpersonationLog.
+router.post(
+  '/distributors/:id/impersonate',
+  platformAuthMiddleware,
+  platformController.impersonateDistributor
+);
+
 // POST /api/platform/distributors/:id/resend-access — reenvía un link de
 // "crear contraseña" (mismo flujo que "olvidé mi contraseña") por si la
 // distribuidora perdió el código de acceso original

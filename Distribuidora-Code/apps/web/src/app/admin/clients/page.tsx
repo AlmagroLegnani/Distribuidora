@@ -11,6 +11,7 @@ interface Client {
   name: string | null;
   email: string | null;
   phone: string | null;
+  address: string | null;
   accessCode: string | null;
   accessCodeSentAt: string | null;
   active: boolean;
@@ -45,15 +46,16 @@ interface ProductOption {
   price: number;
 }
 
-interface NewClientForm {
+interface ClientForm {
   rut: string;
   cedula: string;
   name: string;
   email: string;
   phone: string;
+  address: string;
 }
 
-const EMPTY_FORM: NewClientForm = { rut: '', cedula: '', name: '', email: '', phone: '' };
+const EMPTY_FORM: ClientForm = { rut: '', cedula: '', name: '', email: '', phone: '', address: '' };
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -63,9 +65,14 @@ export default function ClientsPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<NewClientForm>(EMPTY_FORM);
+  const [form, setForm] = useState<ClientForm>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState('');
+
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editForm, setEditForm] = useState<ClientForm>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resendMsg, setResendMsg] = useState('');
@@ -109,6 +116,7 @@ export default function ClientsPage() {
     setLoadingDetail(true);
     setLoadingPrices(true);
     setShowAddDiscount(false);
+    setShowEditForm(false);
     try {
       const detail = await api.get<ClientDetail>(`/clients/${client.id}`);
       setSelected(detail);
@@ -203,6 +211,7 @@ export default function ClientsPage() {
         name: form.name.trim() || null,
         email: form.email.trim(),
         phone: form.phone.trim() || null,
+        address: form.address.trim() || null,
       });
       setForm(EMPTY_FORM);
       setShowForm(false);
@@ -211,6 +220,49 @@ export default function ClientsPage() {
       setFormError(err instanceof Error ? err.message : 'Error al crear el cliente');
     } finally {
       setCreating(false);
+    }
+  }
+
+  function openEdit(client: Client) {
+    setEditError('');
+    setEditForm({
+      rut: client.rut || '',
+      cedula: client.cedula || '',
+      name: client.name || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      address: client.address || '',
+    });
+    setShowEditForm(true);
+  }
+
+  async function saveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!selected) return;
+    setEditError('');
+
+    if (!editForm.rut.trim() && !editForm.cedula.trim()) {
+      setEditError('Ingresa el RUT o la Cédula del cliente (al menos uno de los dos).');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updated = await api.put<Client>(`/clients/${selected.id}`, {
+        rut: editForm.rut.trim() || null,
+        cedula: editForm.cedula.trim() || null,
+        name: editForm.name.trim() || null,
+        email: editForm.email.trim() || null,
+        phone: editForm.phone.trim() || null,
+        address: editForm.address.trim() || null,
+      });
+      setSelected({ ...selected, ...updated });
+      setShowEditForm(false);
+      fetchClients(search);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Error al guardar los cambios');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -310,6 +362,16 @@ export default function ClientsPage() {
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 placeholder="+598 99 123 456"
+                className="input"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Dirección (opcional)</label>
+              <input
+                type="text"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                placeholder="Dirección del comercio/almacén, para reparto"
                 className="input"
               />
             </div>
@@ -416,20 +478,107 @@ export default function ClientsPage() {
           {!loadingDetail && selected && (
             <div className="space-y-4">
               <div className="card p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">
-                  {selected.name || selected.rut || selected.cedula}
-                </h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {selected.rut && (
-                    <div><span className="text-gray-500">RUT:</span> <span className="font-mono">{selected.rut}</span></div>
-                  )}
-                  {selected.cedula && (
-                    <div><span className="text-gray-500">Cédula:</span> <span className="font-mono">{selected.cedula}</span></div>
-                  )}
-                  <div><span className="text-gray-500">Email:</span> {selected.email || '—'}</div>
-                  <div><span className="text-gray-500">Teléfono:</span> {selected.phone || '—'}</div>
-                  <div><span className="text-gray-500">Desde:</span> {formatDate(selected.createdAt)}</div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900">
+                    {selected.name || selected.rut || selected.cedula}
+                  </h3>
+                  <button
+                    onClick={() => (showEditForm ? setShowEditForm(false) : openEdit(selected))}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    {showEditForm ? 'Cancelar' : 'Editar'}
+                  </button>
                 </div>
+
+                {showEditForm ? (
+                  <form onSubmit={saveEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {editError && (
+                      <div className="sm:col-span-2 text-sm p-2 rounded bg-red-50 text-red-700">
+                        {editError}
+                      </div>
+                    )}
+                    <div>
+                      <label className="label">RUT</label>
+                      <input
+                        type="text"
+                        value={editForm.rut}
+                        onChange={(e) => setEditForm({ ...editForm, rut: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Cédula</label>
+                      <input
+                        type="text"
+                        value={editForm.cedula}
+                        onChange={(e) => setEditForm({ ...editForm, cedula: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Razón Social</label>
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Email</label>
+                      <input
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Teléfono</label>
+                      <input
+                        type="tel"
+                        value={editForm.phone}
+                        onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="label">Dirección</label>
+                      <input
+                        type="text"
+                        value={editForm.address}
+                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                        placeholder="Dirección del comercio/almacén, para reparto"
+                        className="input"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 flex gap-2">
+                      <button type="submit" disabled={saving} className="btn-primary text-sm">
+                        {saving ? 'Guardando...' : 'Guardar cambios'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowEditForm(false)}
+                        className="btn-secondary text-sm"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {selected.rut && (
+                      <div><span className="text-gray-500">RUT:</span> <span className="font-mono">{selected.rut}</span></div>
+                    )}
+                    {selected.cedula && (
+                      <div><span className="text-gray-500">Cédula:</span> <span className="font-mono">{selected.cedula}</span></div>
+                    )}
+                    <div><span className="text-gray-500">Email:</span> {selected.email || '—'}</div>
+                    <div><span className="text-gray-500">Teléfono:</span> {selected.phone || '—'}</div>
+                    <div className="col-span-2"><span className="text-gray-500">Dirección:</span> {selected.address || '—'}</div>
+                    <div><span className="text-gray-500">Desde:</span> {formatDate(selected.createdAt)}</div>
+                  </div>
+                )}
 
                 <div className="mt-3 pt-3 border-t flex items-center justify-between">
                   <div className="text-sm">

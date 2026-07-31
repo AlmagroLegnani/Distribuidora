@@ -117,10 +117,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          <p className="text-center text-xs text-gray-400 mt-6">
-            Demo: demo@stockapp.com / demo1234
-          </p>
         </div>
       </div>
     </div>
