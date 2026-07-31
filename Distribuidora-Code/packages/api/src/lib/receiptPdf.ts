@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { IvaType } from '@prisma/client';
+import { IvaType } from '@stockapp/db';
 import { IVA_LABELS, ivaAmountFromFinalPrice } from './iva';
 
 export interface ReceiptItem {
