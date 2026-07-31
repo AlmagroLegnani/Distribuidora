@@ -6,8 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail -n api,web -c blue,green \"npm run dev --workspace=packages/api\" \"npm run dev --workspace=apps/web\"",
-    "build": "npm run build --workspace=packages/api && npm run build --workspace=apps/web",
+    "dev": "npm run build --workspace=packages/db && concurrently --kill-others-on-fail -n api,web -c blue,green \"npm run dev --workspace=packages/api\" \"npm run dev --workspace=apps/web\"",
+    "build": "npm run build --workspace=packages/db && npm run build --workspace=packages/api && npm run build --workspace=apps/web",
     "test": "npm run test --workspace=packages/api",
     "db:generate": "npm run db:generate --workspace=packages/db",
     "db:migrate": "npm run db:migrate --workspace=packages/db",
