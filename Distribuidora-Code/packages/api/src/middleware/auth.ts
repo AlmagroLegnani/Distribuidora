@@ -10,6 +10,7 @@ export interface AuthRequest extends Request {
 interface JwtPayload {
   distributorId: string;
   email: string;
+  role?: string;
 }
 
 export async function authMiddleware(
@@ -32,6 +33,16 @@ export async function authMiddleware(
       throw new Error('JWT_SECRET is not configured');
     }
     const decoded = jwt.verify(token, secret) as JwtPayload;
+    // Un token de super admin (role: 'platform') o cualquier otro que no sea
+    // de distribuidora nunca debería llegar hasta acá, pero si llega (mismo
+    // JWT_SECRET, endpoint equivocado, etc.) `decoded.distributorId` queda
+    // undefined — sin este chequeo, seguía de largo e intentaba buscar un
+    // distribuidor con id undefined, lo que podía tirar abajo el proceso
+    // entero en vez de simplemente rechazar el request con 403.
+    if (decoded.role !== 'distributor' || !decoded.distributorId) {
+      res.status(403).json({ error: 'Forbidden: not a distributor token' });
+      return;
+    }
     distributorId = decoded.distributorId;
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError) {

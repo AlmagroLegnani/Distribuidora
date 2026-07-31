@@ -142,6 +142,19 @@ export async function markDistributorPaid(
   }
 }
 
+export async function impersonateDistributor(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await platformService.impersonateDistributor(req.platformAdminId!, req.params.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function resendAccess(
   req: PlatformAuthRequest,
   res: Response,

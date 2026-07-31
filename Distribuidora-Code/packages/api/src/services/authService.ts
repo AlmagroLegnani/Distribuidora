@@ -64,7 +64,7 @@ export async function login(input: LoginInput): Promise<{ token: string; distrib
   if (!secret) throw new AppError(500, 'JWT_SECRET not configured', false);
 
   const token = jwt.sign(
-    { distributorId: distributor.id, email: distributor.email },
+    { distributorId: distributor.id, email: distributor.email, role: 'distributor' },
     secret,
     { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as jwt.SignOptions['expiresIn'] }
   );

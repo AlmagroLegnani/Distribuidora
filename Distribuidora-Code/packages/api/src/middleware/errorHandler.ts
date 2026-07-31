@@ -23,14 +23,22 @@ export function errorHandler(
 ): void {
   const timestamp = new Date().toISOString();
 
-  // Zod validation errors
+  // Zod validation errors — el frontend (apps/web/src/lib/*/api.ts) solo lee
+  // `error` para mostrarle el mensaje al usuario, nunca `details` (quedaba sin
+  // consumidor en ningún lado). Antes esto hacía que cualquier error de
+  // validación se viera como el genérico "Validation error", sin decir qué
+  // campo falló ni por qué — por ejemplo, un RUT con dígito verificador
+  // incorrecto rechazado sin explicación. Ahora `error` lleva el/los mensajes
+  // reales, y `details` queda disponible por si algún frontend lo quiere
+  // consumir campo por campo en el futuro.
   if (err instanceof ZodError) {
+    const details = err.errors.map((e) => ({
+      field: e.path.join('.'),
+      message: e.message,
+    }));
     res.status(400).json({
-      error: 'Validation error',
-      details: err.errors.map((e) => ({
-        field: e.path.join('.'),
-        message: e.message,
-      })),
+      error: details.map((d) => d.message).join(' — ') || 'Validation error',
+      details,
     });
     return;
   }

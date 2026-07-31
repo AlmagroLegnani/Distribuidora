@@ -94,6 +94,37 @@ export async function fetchOrderReceipt(orderId: string): Promise<{ blob: Blob; 
   return { blob, emailedTo: res.headers.get('X-Client-Email') };
 }
 
+/**
+ * Sube una foto de producto a Cloudinary (vía el backend) y devuelve su URL
+ * pública. No usa `apiRequest` porque el body es `FormData` (multipart), no
+ * JSON — hay que dejar que el navegador ponga su propio `Content-Type` con
+ * el boundary, nunca fijarlo a mano.
+ */
+export async function uploadProductImage(file: File): Promise<{ url: string }> {
+  const token = getToken();
+  const body = new FormData();
+  body.append('image', file);
+
+  const res = await fetch(`${API_URL}/products/upload-image`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body,
+  });
+
+  if (!res.ok) {
+    let message = 'Error al subir la imagen';
+    try {
+      const data = await res.json();
+      message = data.error || message;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+
+  return res.json();
+}
+
 export interface StockAlert {
   id: string;
   type: 'LOW_STOCK' | 'PAYMENT_DUE';

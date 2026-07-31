@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { URUGUAY_DEPARTMENTS } from '../lib/uruguayDepartments';
+import { validateRUT, validateCedula } from '../lib/document';
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
 export const loginSchema = z.object({
@@ -46,11 +47,34 @@ const onlyDigits = (val: unknown): unknown => (typeof val === 'string' ? val.rep
 // have the latter) — enforced below with .refine(), and at the DB level with
 // a CHECK constraint (see packages/db/prisma/migrations).
 const clientBaseSchema = z.object({
-  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
-  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
+  rut: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'RUT inválido')
+      .max(12)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateRUT(val), {
+        message: 'El RUT ingresado no es válido (dígito verificador incorrecto)',
+      })
+  ),
+  cedula: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'Cédula inválida')
+      .max(8)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateCedula(val), {
+        message: 'La Cédula ingresada no es válida (dígito verificador incorrecto)',
+      })
+  ),
   name: z.string().max(200).optional().nullable(),
   email: z.string().email('El email es obligatorio para poder enviar el código de acceso'),
   phone: z.string().max(20).optional().nullable(),
+  address: z.string().max(300).optional().nullable(),
 });
 
 export const createClientSchema = clientBaseSchema.refine(
@@ -58,7 +82,12 @@ export const createClientSchema = clientBaseSchema.refine(
   { message: 'Debes ingresar el RUT o la Cédula del cliente', path: ['rut'] }
 );
 
-export const updateClientSchema = clientBaseSchema.omit({ rut: true, cedula: true }).partial();
+// A diferencia de antes, sí se puede editar el RUT/Cédula acá (antes se
+// omitían por completo, era imposible corregir un error de tipeo sin
+// desactivar y recargar el cliente entero). `.partial()` hace que todos los
+// campos sean opcionales — es una edición parcial, no hace falta repetir
+// "al menos uno de los dos" en cada guardado.
+export const updateClientSchema = clientBaseSchema.partial();
 
 // ─── Order ────────────────────────────────────────────────────────────────
 export const orderStatusSchema = z.object({
@@ -127,6 +156,7 @@ const RESERVED_SLUGS = [
   'signup',
   'api',
   'health',
+  'impersonate',
 ];
 
 export const createDistributorSchema = z.object({
@@ -142,8 +172,30 @@ export const createDistributorSchema = z.object({
     }),
   phone: z.string().min(1, 'El teléfono es obligatorio').max(20),
   // Igual que en Client: opcional, uno u otro, se limpia a solo dígitos.
-  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
-  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
+  rut: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'RUT inválido')
+      .max(12)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateRUT(val), {
+        message: 'El RUT ingresado no es válido (dígito verificador incorrecto)',
+      })
+  ),
+  cedula: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'Cédula inválida')
+      .max(8)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateCedula(val), {
+        message: 'La Cédula ingresada no es válida (dígito verificador incorrecto)',
+      })
+  ),
   // Dirección de texto libre (no se usa para filtrar) + departamento de una
   // lista fija (sí se usa para filtrar en /distribuidoras) — ambos opcionales
   // porque hay distribuidoras ya cargadas sin este dato.
@@ -191,8 +243,30 @@ export const updateSettingsSchema = z.object({
 // que en Client, opcional y uno u otro (no forzamos ninguno de los dos acá:
 // muchas distribuidoras ya existentes no lo tienen cargado).
 export const updateDistributorProfileSchema = z.object({
-  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
-  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
+  rut: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'RUT inválido')
+      .max(12)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateRUT(val), {
+        message: 'El RUT ingresado no es válido (dígito verificador incorrecto)',
+      })
+  ),
+  cedula: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'Cédula inválida')
+      .max(8)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateCedula(val), {
+        message: 'La Cédula ingresada no es válida (dígito verificador incorrecto)',
+      })
+  ),
   address: z.string().max(300).optional().nullable(),
   city: z.enum(URUGUAY_DEPARTMENTS).optional().nullable(),
 });

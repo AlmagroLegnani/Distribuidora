@@ -21,6 +21,7 @@ interface Product {
   ivaType: IvaType;
   stock: number;
   category: string | null;
+  imageUrl?: string | null;
 }
 
 export default function ProductCard({ product }: { product: Product }) {
@@ -49,6 +50,26 @@ export default function ProductCard({ product }: { product: Product }) {
 
   return (
     <div className="card p-4 flex flex-col gap-3">
+      {/* Foto */}
+      {product.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="w-full h-32 object-contain rounded-lg bg-gray-50"
+        />
+      ) : (
+        <div className="w-full h-32 rounded-lg bg-gray-50 flex items-center justify-center">
+          <svg className="w-8 h-8 text-gray-200" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex-1">
         <div className="flex items-start justify-between gap-2">
