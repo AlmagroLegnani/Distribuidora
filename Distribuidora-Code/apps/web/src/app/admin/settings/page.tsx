@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/admin/api';
 import { URUGUAY_DEPARTMENTS } from '@/lib/uruguayDepartments';
@@ -49,6 +49,14 @@ interface ProfileForm {
 }
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsPageInner />
+    </Suspense>
+  );
+}
+
+function SettingsPageInner() {
   const searchParams = useSearchParams();
   const paymentResult = searchParams.get('payment'); // success | pending | failed, seteado al volver de MercadoPago
 

@@ -1,4 +1,4 @@
-import { IvaType } from '@prisma/client';
+import { IvaType } from '@stockapp/db';
 import { sendMail } from '../lib/mailer';
 import { IVA_LABELS, ivaAmountFromFinalPrice } from '../lib/iva';
 

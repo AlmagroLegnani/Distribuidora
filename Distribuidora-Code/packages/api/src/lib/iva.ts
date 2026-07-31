@@ -1,4 +1,4 @@
-import { IvaType } from '@prisma/client';
+import { IvaType } from '@stockapp/db';
 
 /**
  * Tasas de IVA vigentes en Uruguay relevantes para el catálogo de un

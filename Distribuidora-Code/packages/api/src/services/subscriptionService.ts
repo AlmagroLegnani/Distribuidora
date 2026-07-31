@@ -1,4 +1,4 @@
-import { SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus } from '@stockapp/db';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 

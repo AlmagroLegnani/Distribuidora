@@ -9,7 +9,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "^5.8.0",
+    "@stockapp/db": "*",
     "@stockapp/shared": "*",
     "axios": "^1.18.1",
     "bcryptjs": "^2.4.3",
