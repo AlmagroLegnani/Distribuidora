@@ -30,12 +30,26 @@ function createTransporter() {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
 
-  return nodemailer.createTransport({
+  // `family: 4` no está en los tipos de @types/nodemailer pero nodemailer sí
+  // lo reenvía al socket subyacente en tiempo de ejecución — por eso se arma
+  // como `any` acá, para no pelear con el chequeo de propiedades del literal.
+  const options: any = {
     host: SMTP_HOST,
     port: parseInt(SMTP_PORT || '587', 10),
     secure: SMTP_PORT === '465',
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
+    // Forzamos IPv4: muchos hosts cloud (Railway incluido) tienen IPv6 mal
+    // ruteado, lo que hace que nodemailer intente conectar por IPv6 primero,
+    // se cuelgue, y termine en "Connection timeout" contra smtp.gmail.com.
+    family: 4,
+    // Timeouts explícitos para que, si la conexión SMTP falla igual, el error
+    // salga rápido (segundos) en vez de dejar la request colgada hasta que el
+    // proxy de la plataforma la corte sola con un 502.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 10_000,
+  };
+  return nodemailer.createTransport(options);
 }
 
 interface MailAttachment {
