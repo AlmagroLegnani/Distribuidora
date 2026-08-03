@@ -135,7 +135,7 @@ export const markPaidSchema = z.object({
 });
 
 // ─── Alta de distribuidora por la plataforma ─────────────────────────────────
-// Ya no hay autoregistro público: el equipo de StockApp carga la distribuidora
+// Ya no hay autoregistro público: el equipo de TuStockApp carga la distribuidora
 // desde el panel de superadmin. El sistema genera un código de acceso único y
 // se lo envía por email — ese código funciona como su contraseña inicial (ver
 // platformService.createDistributor).

@@ -4,7 +4,7 @@ import { prisma } from './prisma';
 /**
  * Aviso de confidencialidad que se agrega al pie de TODOS los correos que
  * manda la plataforma (código de acceso, comprobantes, notificaciones de
- * pedido, avisos de pago, etc.) — deja en claro que StockApp es solo un
+ * pedido, avisos de pago, etc.) — deja en claro que TuStockApp es solo un
  * intermediario técnico: no revisa ni conserva el contenido, y esta copia se
  * borra de nuestra bandeja de enviados pasada una hora (ver
  * emailCleanupService.ts). La comunicación queda en confidencialidad
@@ -12,7 +12,7 @@ import { prisma } from './prisma';
  */
 const CONFIDENTIALITY_FOOTER = `
   <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e0e0e0;font-size:11px;color:#999;line-height:1.5;">
-    Este mensaje fue enviado automáticamente por <strong>StockApp</strong>, que actúa únicamente
+    Este mensaje fue enviado automáticamente por <strong>TuStockApp</strong>, que actúa únicamente
     como intermediario técnico entre las partes. No revisamos, almacenamos ni utilizamos el
     contenido de este correo — es un simple canal de envío, y esta copia se elimina de nuestra
     bandeja de enviados dentro de la hora. La confidencialidad de esta comunicación es exclusiva

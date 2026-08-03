@@ -169,10 +169,10 @@ export async function createDistributor(input: CreateDistributorInput) {
   try {
     await sendMail({
       to: distributor.email,
-      subject: `Tu acceso a StockApp — ${distributor.name}`,
+      subject: `Tu acceso a TuStockApp — ${distributor.name}`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
-          <h2>Bienvenido a StockApp</h2>
+          <h2>Bienvenido a TuStockApp</h2>
           <p>Ya dimos de alta a <strong>${distributor.name}</strong> en la plataforma. Para ingresar a tu backoffice usá tu email y este código de acceso:</p>
           <p style="font-size:24px;font-weight:bold;letter-spacing:3px;background:#f3f4f6;padding:14px 20px;border-radius:8px;text-align:center;">${accessCode}</p>
           <p>Ingresá desde <a href="${WEB_URL}">${WEB_URL}</a> haciendo clic en "Soy distribuidora", o directo en tu panel.</p>

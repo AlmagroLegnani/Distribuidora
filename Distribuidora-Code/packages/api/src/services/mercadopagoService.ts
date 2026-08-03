@@ -32,7 +32,7 @@ export async function createCheckoutPreference(subscriptionId: string): Promise<
       items: [
         {
           id: sub.plan.id,
-          title: `Suscripción StockApp — Plan ${sub.plan.name}`,
+          title: `Suscripción TuStockApp — Plan ${sub.plan.name}`,
           quantity: 1,
           currency_id: sub.plan.currency || 'UYU',
           unit_price: sub.plan.price,
