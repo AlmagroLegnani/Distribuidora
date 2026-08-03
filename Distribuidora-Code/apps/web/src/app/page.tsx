@@ -5,7 +5,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-xl w-full">
         <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-gray-900">StockApp</h1>
+          <h1 className="text-3xl font-bold text-gray-900">TuStockApp</h1>
           <p className="text-gray-500 mt-2">¿Cómo querés ingresar?</p>
         </div>
 

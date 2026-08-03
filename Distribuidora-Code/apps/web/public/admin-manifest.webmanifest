@@ -1,6 +1,6 @@
 {
-  "name": "StockApp — Panel de Distribuidor",
-  "short_name": "StockApp Admin",
+  "name": "TuStockApp — Panel de Distribuidor",
+  "short_name": "TuStockApp Admin",
   "description": "Gestioná tu catálogo, tus clientes y tus pedidos.",
   "start_url": "/admin",
   "display": "standalone",

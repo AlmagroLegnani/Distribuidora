@@ -157,11 +157,11 @@ export async function requestPasswordReset(email: string): Promise<void> {
 
   await sendMail({
     to: distributor.email,
-    subject: 'Recupera tu contraseña — StockApp',
+    subject: 'Recupera tu contraseña — TuStockApp',
     html: `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
         <h2>Recupera tu contraseña</h2>
-        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta StockApp.</p>
+        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta TuStockApp.</p>
         <p><a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;">Restablecer contraseña</a></p>
         <p style="color:#666;font-size:13px;">Este enlace vence en ${RESET_TOKEN_TTL_MINUTES} minutos. Si no solicitaste esto, ignora este correo.</p>
       </div>`,

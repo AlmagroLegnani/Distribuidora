@@ -39,7 +39,7 @@ export default function PlatformLoginPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2M5 21h2m0 0h10M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 8v-4a1 1 0 011-1h0a1 1 0 011 1v4" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">StockApp</h1>
+            <h1 className="text-2xl font-bold text-gray-900">TuStockApp</h1>
             <p className="text-sm text-gray-500 mt-1">Panel de plataforma</p>
           </div>
 

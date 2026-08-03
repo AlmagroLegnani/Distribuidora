@@ -23,7 +23,7 @@ async function main(): Promise<void> {
     where: { slug: 'unico' },
     update: {},
     create: {
-      name: 'Plan StockApp',
+      name: 'Plan TuStockApp',
       slug: 'unico',
       price: 19990,
       currency: 'UYU',

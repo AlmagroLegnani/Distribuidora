@@ -1,7 +1,7 @@
 import type { IvaType } from './api';
 
 /**
- * Tasas de IVA de Uruguay soportadas por StockApp. Los precios que carga
+ * Tasas de IVA de Uruguay soportadas por TuStockApp. Los precios que carga
  * la distribuidora ya son precios finales (IVA incluido) — esto solo se
  * usa para mostrar la etiqueta y calcular el IVA "contenido" en el precio,
  * nunca para recalcular el precio en sí. Debe coincidir con

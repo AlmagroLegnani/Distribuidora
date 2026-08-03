@@ -13,7 +13,7 @@ interface Plan {
 }
 
 const emptyForm = {
-  name: 'Plan StockApp',
+  name: 'Plan TuStockApp',
   slug: 'unico',
   price: 0,
   currency: 'UYU',

@@ -7,7 +7,7 @@ const BATCH_SIZE = 50;
 /**
  * Borra de la bandeja "Enviados" de la cuenta de Gmail usada para mandar
  * correos (SMTP_USER/SMTP_PASS) los mensajes que ya pasaron 1 hora desde que
- * se enviaron. Esto es parte del compromiso de confidencialidad: StockApp
+ * se enviaron. Esto es parte del compromiso de confidencialidad: TuStockApp
  * actúa como intermediario técnico y no conserva un historial de la
  * correspondencia entre distribuidoras y clientes.
  *
