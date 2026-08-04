@@ -18,4 +18,7 @@ router.patch('/read', notificationController.markRead);
 // DELETE /api/notifications/:id
 router.delete('/:id', notificationController.remove);
 
+// POST /api/notifications/:id/send-reminder
+router.post('/:id/send-reminder', notificationController.sendReminder);
+
 export default router;

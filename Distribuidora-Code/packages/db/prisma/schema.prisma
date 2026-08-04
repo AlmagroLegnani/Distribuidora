@@ -177,24 +177,33 @@ model Product {
 // Notificación mostrada al distribuidor en su panel (sección "Notificaciones" +
 // modal al ingresar). Nació como aviso de stock bajo (ver stockAlertService.ts)
 // y se generalizó para poder avisar también vencimientos de pago (ver
-// platformService.notifyPaymentDue) — de ahí que los campos de producto sean
-// opcionales y sólo se completen cuando type = LOW_STOCK.
+// platformService.notifyPaymentDue) y sugerencias de recompra (ver
+// reorderSuggestionService.ts) — de ahí que los campos de producto/cliente
+// sean opcionales y sólo se completen según el tipo.
 model StockAlert {
   id            String      @id @default(cuid())
   distributorId String
   distributor   Distributor @relation(fields: [distributorId], references: [id])
-  type          String      @default("LOW_STOCK") // LOW_STOCK | PAYMENT_DUE
-  message       String? // texto ya armado para tipos que no son de stock (ej: aviso de vencimiento)
+  type          String      @default("LOW_STOCK") // LOW_STOCK | PAYMENT_DUE | REORDER_SUGGESTION
+  message       String? // texto ya armado para tipos que no son de stock (ej: aviso de vencimiento o sugerencia de recompra)
   productId     String?
   product       Product?    @relation(fields: [productId], references: [id])
   productName   String? // copia del nombre al momento de la alerta, por si el producto cambia de nombre o se borra
   stockAtAlert  Int?
   threshold     Int?
+  // Solo se completan cuando type = REORDER_SUGGESTION: el cliente que viene
+  // pidiendo el producto seguido, para poder mandarle el recordatorio por push
+  // cuando la distribuidora hace clic en "Enviar recordatorio".
+  clientId      String?
+  client        Client?     @relation(fields: [clientId], references: [id])
+  clientName    String? // copia del nombre al momento de la alerta, por si el cliente cambia de nombre o se borra
+  reminderSentAt DateTime? // cuándo se hizo clic en "Enviar recordatorio" (null = todavía no se envió)
   read          Boolean     @default(false) // se marca leída al cerrar el modal o abrir la sección de notificaciones
   emailSentAt   DateTime?
   createdAt     DateTime    @default(now())
 
   @@index([distributorId, read])
+  @@index([clientId, productId, createdAt])
 }
 
 // Cliente (empresa compradora)
@@ -216,6 +225,7 @@ model Client {
   orders            Order[]
   clientPrices      ClientPrice[]
   pushSubscriptions PushSubscription[]
+  stockAlerts       StockAlert[]
 
   // Al menos uno de rut/cedula debe estar presente (ver migración: CHECK constraint).
   // Nulos no chocan entre sí en Postgres, por lo que ambos unique constraints conviven.

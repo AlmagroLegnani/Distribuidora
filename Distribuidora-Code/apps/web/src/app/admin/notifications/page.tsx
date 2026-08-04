@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { getNotifications, markNotificationsRead, deleteNotification, StockAlert } from '@/lib/admin/api';
+import { getNotifications, markNotificationsRead, deleteNotification, sendReminder, StockAlert } from '@/lib/admin/api';
 import { formatDate } from '@/lib/admin/utils';
 
 export default function NotificationsPage() {
@@ -9,6 +9,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -62,13 +63,32 @@ export default function NotificationsPage() {
     }
   }
 
+  async function handleSendReminder(id: string) {
+    setSendingId(id);
+    try {
+      const result = await sendReminder(id);
+      if (result.sent) {
+        setAlerts((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, reminderSentAt: new Date().toISOString() } : a))
+        );
+      } else {
+        alert(result.reason || 'No se pudo enviar el recordatorio.');
+        await fetchAlerts();
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al enviar el recordatorio');
+    } finally {
+      setSendingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Avisos de stock bajo y de vencimiento de pago.
+            Avisos de stock bajo, vencimiento de pago y sugerencias de recompra de tus clientes.
           </p>
         </div>
         {unreadCount > 0 && (
@@ -88,7 +108,8 @@ export default function NotificationsPage() {
         ) : alerts.length === 0 ? (
           <div className="p-6 text-center text-gray-500">
             No hay notificaciones todavía. Te avisaremos acá cuando algún producto tenga menos de 30
-            unidades de stock, o cuando se acerque el vencimiento de tu pago.
+            unidades de stock, cuando se acerque el vencimiento de tu pago, o cuando detectemos que un
+            cliente viene pidiendo el mismo producto seguido.
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -96,7 +117,7 @@ export default function NotificationsPage() {
               <tr className="border-b border-gray-200 text-left text-gray-500">
                 <th className="p-4 font-medium">Aviso</th>
                 <th className="p-4 font-medium">Fecha</th>
-                <th className="p-4 font-medium">Email</th>
+                <th className="p-4 font-medium">Enviado</th>
                 <th className="p-4 font-medium"></th>
               </tr>
             </thead>
@@ -114,6 +135,11 @@ export default function NotificationsPage() {
                         <span className="mr-1">⏰</span>
                         {alert.message}
                       </>
+                    ) : alert.type === 'REORDER_SUGGESTION' ? (
+                      <>
+                        <span className="mr-1">🔄</span>
+                        {alert.message}
+                      </>
                     ) : (
                       <>
                         <span className="mr-1">⚠️</span>
@@ -122,8 +148,25 @@ export default function NotificationsPage() {
                     )}
                   </td>
                   <td className="p-4">{formatDate(alert.createdAt)}</td>
-                  <td className="p-4">{alert.emailSentAt ? 'Enviado' : '—'}</td>
+                  <td className="p-4">
+                    {alert.type === 'REORDER_SUGGESTION'
+                      ? alert.reminderSentAt
+                        ? 'Recordatorio enviado'
+                        : '—'
+                      : alert.emailSentAt
+                      ? 'Enviado'
+                      : '—'}
+                  </td>
                   <td className="p-4 text-right space-x-3 whitespace-nowrap">
+                    {alert.type === 'REORDER_SUGGESTION' && !alert.reminderSentAt && (
+                      <button
+                        onClick={() => handleSendReminder(alert.id)}
+                        disabled={sendingId === alert.id}
+                        className="text-blue-600 hover:text-blue-700 text-xs font-medium disabled:opacity-50"
+                      >
+                        {sendingId === alert.id ? 'Enviando...' : 'Enviar recordatorio'}
+                      </button>
+                    )}
                     {!alert.read && (
                       <button
                         onClick={() => handleMarkOneRead(alert.id)}
