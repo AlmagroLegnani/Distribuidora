@@ -22,6 +22,7 @@ interface Product {
   stock: number;
   category: string | null;
   imageUrl?: string | null;
+  promotionText?: string | null;
 }
 
 export default function ProductCard({ product }: { product: Product }) {
@@ -92,6 +93,14 @@ export default function ProductCard({ product }: { product: Product }) {
           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
         )}
       </div>
+
+      {/* Promoción (ej: regalo de fábrica, 2x1) — informativa, no cambia el precio */}
+      {product.promotionText && (
+        <div className="flex items-start gap-1.5 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+          <span className="shrink-0">🎁</span>
+          <span>{product.promotionText}</span>
+        </div>
+      )}
 
       {/* Price */}
       <div>

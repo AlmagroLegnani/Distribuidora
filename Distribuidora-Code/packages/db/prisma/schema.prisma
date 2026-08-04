@@ -164,6 +164,20 @@ model Product {
   // y ya se generó una alerta; se resetea a false cuando el stock vuelve a superar el umbral,
   // para poder avisar de nuevo si vuelve a caer más adelante.
   lowStockAlerted Boolean     @default(false)
+  // Promoción "de fábrica" que el laboratorio/marca le da a la distribuidora
+  // para este producto (ej: "Llevate de regalo un marcador Bic", "2x1 esta
+  // semana") — texto libre, visible para TODOS los clientes de la
+  // distribuidora en el catálogo. A diferencia de ClientPrice (descuento en $
+  // para un cliente puntual), esto no toca el precio, es solo un aviso. Al
+  // activarla (false -> true) se les manda una notificación push a los
+  // clientes que la tengan habilitada — ver promotionNotificationService.ts.
+  // promotionEndDate es opcional: si se completa, el catálogo público deja
+  // de mostrar la promo pasada esa fecha sin que la distribuidora tenga que
+  // acordarse de apagarla a mano (el flag promotionActive no se toca solo,
+  // así conserva el texto por si la quiere reactivar más adelante).
+  promotionActive  Boolean     @default(false)
+  promotionText    String?
+  promotionEndDate DateTime?   @db.Date
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
