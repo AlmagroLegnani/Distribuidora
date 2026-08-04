@@ -35,12 +35,17 @@ export async function apiRequest<T>(
 
   const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
 
-  if (res.status === 401) {
+  // Un 401 solo significa "se venció la sesión" si veníamos usando un token
+  // (request autenticado). Si no había token —como al intentar iniciar
+  // sesión con datos incorrectos— el 401 es la respuesta normal del backend
+  // a credenciales inválidas, y no hay que redirigir ni tapar el mensaje de
+  // error real: dejamos que caiga al manejo genérico de abajo.
+  if (res.status === 401 && token) {
     clearAuth();
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
     }
-    throw new Error('Session expired. Please log in again.');
+    throw new Error('Sesión expirada. Inicia sesión nuevamente.');
   }
 
   if (!res.ok) {

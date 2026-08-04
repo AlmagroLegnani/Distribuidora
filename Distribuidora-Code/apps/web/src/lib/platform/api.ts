@@ -30,7 +30,10 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
 
   const res = await fetch(`${API_URL}/platform${endpoint}`, { ...options, headers });
 
-  if (res.status === 401) {
+  // Igual que en lib/admin/api.ts: un 401 sin token de por medio es una
+  // respuesta normal a credenciales incorrectas (ej. /platform/auth/login),
+  // no una sesión vencida — no hay que redirigir ni tapar el mensaje real.
+  if (res.status === 401 && token) {
     clearAuth();
     // NOTA: a diferencia del original en apps/superadmin (que redirigía a
     // '/login'), acá redirige a '/platform-login' — en la app unificada
