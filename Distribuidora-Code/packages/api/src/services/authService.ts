@@ -27,7 +27,7 @@ export async function login(input: LoginInput): Promise<{ token: string; distrib
   });
 
   if (!distributor) {
-    throw new AppError(401, 'Invalid email or password');
+    throw new AppError(401, 'Email o contraseña incorrectos');
   }
 
   // Bring the active flag up to date with the subscription's trial/grace period
@@ -57,7 +57,7 @@ export async function login(input: LoginInput): Promise<{ token: string; distrib
 
   const passwordMatch = await bcrypt.compare(input.password, distributor.password);
   if (!passwordMatch) {
-    throw new AppError(401, 'Invalid email or password');
+    throw new AppError(401, 'Email o contraseña incorrectos');
   }
 
   const secret = process.env.JWT_SECRET;
@@ -127,7 +127,7 @@ export async function changePassword(
   if (distributor.passwordChanged) {
     if (!currentPassword) throw new AppError(400, 'Debés ingresar tu contraseña actual');
     const match = await bcrypt.compare(currentPassword, distributor.password);
-    if (!match) throw new AppError(401, 'Current password is incorrect');
+    if (!match) throw new AppError(401, 'La contraseña actual es incorrecta');
   }
 
   const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
