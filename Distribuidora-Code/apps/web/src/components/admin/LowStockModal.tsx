@@ -58,6 +58,11 @@ export default function LowStockModal() {
                   <span className="mr-1">⏰</span>
                   {alert.message}
                 </>
+              ) : alert.type === 'REORDER_SUGGESTION' ? (
+                <>
+                  <span className="mr-1">🔄</span>
+                  {alert.message}
+                </>
               ) : (
                 <>
                   <span className="mr-1">⚠️</span>

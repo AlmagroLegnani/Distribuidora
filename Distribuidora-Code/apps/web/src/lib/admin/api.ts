@@ -132,12 +132,15 @@ export async function uploadProductImage(file: File): Promise<{ url: string }> {
 
 export interface StockAlert {
   id: string;
-  type: 'LOW_STOCK' | 'PAYMENT_DUE';
+  type: 'LOW_STOCK' | 'PAYMENT_DUE' | 'REORDER_SUGGESTION';
   message: string | null;
   productId: string | null;
   productName: string | null;
   stockAtAlert: number | null;
   threshold: number | null;
+  clientId: string | null;
+  clientName: string | null;
+  reminderSentAt: string | null;
   read: boolean;
   emailSentAt: string | null;
   createdAt: string;
@@ -164,6 +167,11 @@ export async function markNotificationsRead(ids?: string[]): Promise<void> {
 /** Elimina una notificación puntual (ya resuelta, ej. se repuso el stock). */
 export async function deleteNotification(id: string): Promise<void> {
   await apiRequest(`/notifications/${id}`, { method: 'DELETE' });
+}
+
+/** Botón "Enviar recordatorio" de una sugerencia de recompra: manda un push al cliente. */
+export async function sendReminder(id: string): Promise<{ sent: boolean; reason?: string }> {
+  return apiRequest(`/notifications/${id}/send-reminder`, { method: 'POST' });
 }
 
 export const api = {

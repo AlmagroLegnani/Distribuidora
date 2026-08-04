@@ -6,6 +6,7 @@ import { errorHandler } from './middleware/errorHandler';
 import routes from './routes';
 import { cleanupOldSentEmails } from './services/emailCleanupService';
 import { sendDailyOrderReminders } from './services/reminderService';
+import { detectReorderSuggestions } from './services/reorderSuggestionService';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -83,6 +84,26 @@ setInterval(() => {
   lastReminderRunDate = todayKey;
   sendDailyOrderReminders().catch((err) =>
     console.error(`[${new Date().toISOString()}] [reminder] Error inesperado:`, err)
+  );
+}, REMINDER_CHECK_INTERVAL_MS);
+
+// Detección de "pedidos recurrentes" (mismo producto pedido la semana
+// calendario pasada y todavía no repetido esta semana): corre una vez al
+// día, un rato antes del recordatorio de arriba (8am Uruguay = 11:00 UTC),
+// para que las sugerencias ya estén generadas en Notificaciones cuando la
+// distribuidora arranca su día. Mismo patrón de flag-en-memoria que los jobs
+// de arriba.
+const REORDER_SUGGESTION_HOUR_UTC = 11; // 8:00 Uruguay
+let lastReorderSuggestionRunDate: string | null = null;
+setInterval(() => {
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10);
+  if (now.getUTCHours() !== REORDER_SUGGESTION_HOUR_UTC) return;
+  if (lastReorderSuggestionRunDate === todayKey) return;
+
+  lastReorderSuggestionRunDate = todayKey;
+  detectReorderSuggestions().catch((err) =>
+    console.error(`[${new Date().toISOString()}] [reorder-suggestion] Error inesperado:`, err)
   );
 }, REMINDER_CHECK_INTERVAL_MS);
 
