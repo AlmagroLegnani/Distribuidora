@@ -79,17 +79,14 @@ export default function ProductCard({ product }: { product: Product }) {
               <span className="text-xs text-blue-600 font-medium block">{product.brand}</span>
             )}
           </div>
-          <span
-            className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
-              remainingStock === 0
-                ? 'bg-red-100 text-red-700'
-                : remainingStock <= 5
-                ? 'bg-yellow-100 text-yellow-700'
-                : 'bg-green-100 text-green-700'
-            }`}
-          >
-            {remainingStock === 0 ? 'Sin stock' : `${remainingStock} disp.`}
-          </span>
+          {/* A propósito NO mostramos la cantidad exacta de stock al cliente
+              (solo si se agotó) — la distribuidora no quiere que sepan
+              cuántas unidades quedan, solo si el producto está disponible o no. */}
+          {remainingStock === 0 && (
+            <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+              Sin stock
+            </span>
+          )}
         </div>
         {product.description && (
           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
