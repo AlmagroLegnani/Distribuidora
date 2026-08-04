@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { api } from '@/lib/admin/api';
+import { useEffect, useState, useCallback, useRef, ChangeEvent } from 'react';
+import { api, uploadProductImage } from '@/lib/admin/api';
 import { formatCurrency } from '@/lib/admin/utils';
 
 type IvaType = 'BASICA' | 'MINIMA';
@@ -21,6 +21,7 @@ interface Product {
   ivaType: IvaType;
   stock: number;
   category: string | null;
+  imageUrl: string | null;
   active: boolean;
 }
 
@@ -33,6 +34,7 @@ interface ProductFormData {
   ivaType: IvaType;
   stock: string;
   category: string;
+  imageUrl: string;
 }
 
 const EMPTY_FORM: ProductFormData = {
@@ -44,6 +46,7 @@ const EMPTY_FORM: ProductFormData = {
   ivaType: 'BASICA',
   stock: '',
   category: '',
+  imageUrl: '',
 };
 
 export default function ProductsPage() {
@@ -57,6 +60,8 @@ export default function ProductsPage() {
   const [formError, setFormError] = useState('');
   const [inlineStock, setInlineStock] = useState<Record<string, string>>({});
   const [updatingStock, setUpdatingStock] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState('');
   const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const fetchProducts = useCallback(async (q?: string) => {
@@ -86,6 +91,7 @@ export default function ProductsPage() {
     setEditProduct(null);
     setForm(EMPTY_FORM);
     setFormError('');
+    setImageError('');
     setShowModal(true);
   }
 
@@ -100,9 +106,28 @@ export default function ProductsPage() {
       ivaType: product.ivaType,
       stock: String(product.stock),
       category: product.category || '',
+      imageUrl: product.imageUrl || '',
     });
     setFormError('');
+    setImageError('');
     setShowModal(true);
+  }
+
+  async function handleImageChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite volver a elegir el mismo archivo si se cancela/reintenta
+    if (!file) return;
+
+    setImageError('');
+    setUploadingImage(true);
+    try {
+      const { url } = await uploadProductImage(file);
+      setForm((f) => ({ ...f, imageUrl: url }));
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : 'Error al subir la imagen');
+    } finally {
+      setUploadingImage(false);
+    }
   }
 
   async function handleSave() {
@@ -118,6 +143,7 @@ export default function ProductsPage() {
         ivaType: form.ivaType,
         stock: parseInt(form.stock, 10),
         category: form.category || null,
+        imageUrl: form.imageUrl || null,
       };
 
       if (editProduct) {
@@ -207,6 +233,7 @@ export default function ProductsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
+                  <th className="px-4 py-3" />
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Nombre</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Marca</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
@@ -222,6 +249,18 @@ export default function ProductsPage() {
                   const editing = product.id in inlineStock;
                   return (
                     <tr key={product.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        {product.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-10 h-10 object-contain rounded-md border border-gray-200 bg-gray-50"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-md bg-gray-100 border border-gray-200" />
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-medium">{product.name}</td>
                       <td className="px-4 py-3 text-gray-600">{product.brand || '—'}</td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-500">
@@ -414,13 +453,48 @@ export default function ProductsPage() {
                     placeholder="Descripción del producto..."
                   />
                 </div>
+                <div className="col-span-2">
+                  <label className="label">Foto (opcional)</label>
+                  {imageError && (
+                    <div className="mb-2 p-2 bg-red-50 text-red-700 text-xs rounded">{imageError}</div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    {form.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={form.imageUrl}
+                        alt="Vista previa"
+                        className="w-16 h-16 object-contain rounded-lg border border-gray-200 bg-gray-50"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        disabled={uploadingImage}
+                        className="text-sm"
+                      />
+                      {uploadingImage && <p className="text-xs text-gray-400 mt-1">Subiendo...</p>}
+                      {form.imageUrl && !uploadingImage && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, imageUrl: '' }))}
+                          className="text-xs text-red-500 hover:text-red-700 mt-1"
+                        >
+                          Quitar foto
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-3 p-5 border-t">
               <button onClick={() => setShowModal(false)} className="btn-secondary">
                 Cancelar
               </button>
-              <button onClick={handleSave} disabled={saving} className="btn-primary">
+              <button onClick={handleSave} disabled={saving || uploadingImage} className="btn-primary">
                 {saving ? 'Guardando...' : editProduct ? 'Guardar cambios' : 'Crear producto'}
               </button>
             </div>

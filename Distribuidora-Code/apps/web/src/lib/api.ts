@@ -59,6 +59,8 @@ export interface ClientOrder {
   status: string;
   createdAt: string;
   notes: string | null;
+  estimatedDeliveryDate: string | null;
+  estimatedDeliveryTime: string | null;
   items: Array<{
     quantity: number;
     unitPrice: number;
@@ -183,6 +185,35 @@ export async function createContactRequest(payload: {
   return apiFetch<{ id: string }>(`/public/contact-requests`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export interface PushSubscriptionKeys {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+export async function subscribeToPush(
+  slug: string,
+  documento: string,
+  code: string,
+  subscription: PushSubscriptionKeys
+): Promise<void> {
+  await apiFetch(`/public/${slug}/push-subscribe`, {
+    method: 'POST',
+    body: JSON.stringify({ documento, code, subscription }),
+  });
+}
+
+export async function unsubscribeFromPush(
+  slug: string,
+  documento: string,
+  code: string,
+  endpoint: string
+): Promise<void> {
+  await apiFetch(`/public/${slug}/push-unsubscribe`, {
+    method: 'POST',
+    body: JSON.stringify({ documento, code, endpoint }),
   });
 }
 

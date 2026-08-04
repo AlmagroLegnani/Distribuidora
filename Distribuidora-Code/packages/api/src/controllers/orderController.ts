@@ -44,7 +44,11 @@ export async function updateStatus(
     const order = await orderService.updateOrderStatus(
       req.distributorId!,
       req.params.id,
-      req.body.status as OrderStatus
+      req.body.status as OrderStatus,
+      {
+        date: req.body.estimatedDeliveryDate || undefined,
+        time: req.body.estimatedDeliveryTime || undefined,
+      }
     );
     res.json(order);
   } catch (err) {

@@ -55,7 +55,7 @@ export default function ContactoPage() {
               </div>
               <h1 className="text-xl font-bold text-gray-900">¡Listo, recibimos tu solicitud!</h1>
               <p className="text-sm text-gray-500">
-                Nos vamos a contactar a la brevedad para darte de alta como distribuidora en StockApp.
+                Nos vamos a contactar a la brevedad para darte de alta como distribuidora en TuStockApp.
               </p>
               <Link href="/" className="btn-primary inline-flex mt-2">
                 Volver al inicio
@@ -66,7 +66,7 @@ export default function ContactoPage() {
               <div className="text-center mb-6">
                 <h1 className="text-xl font-bold text-gray-900">Contactate con nosotros</h1>
                 <p className="text-sm text-gray-500 mt-1">
-                  Dejanos tus datos y te contactamos para dar de alta a tu distribuidora en StockApp.
+                  Dejanos tus datos y te contactamos para dar de alta a tu distribuidora en TuStockApp.
                 </p>
               </div>
 

@@ -64,7 +64,7 @@ export async function login(input: LoginInput): Promise<{ token: string; distrib
   if (!secret) throw new AppError(500, 'JWT_SECRET not configured', false);
 
   const token = jwt.sign(
-    { distributorId: distributor.id, email: distributor.email },
+    { distributorId: distributor.id, email: distributor.email, role: 'distributor' },
     secret,
     { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as jwt.SignOptions['expiresIn'] }
   );
@@ -155,17 +155,25 @@ export async function requestPasswordReset(email: string): Promise<void> {
   // recuperación usa esa variable y no la vieja ADMIN_URL.
   const resetUrl = `${process.env.PLATFORM_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
 
-  await sendMail({
-    to: distributor.email,
-    subject: 'Recupera tu contraseña — StockApp',
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
-        <h2>Recupera tu contraseña</h2>
-        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta StockApp.</p>
-        <p><a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;">Restablecer contraseña</a></p>
-        <p style="color:#666;font-size:13px;">Este enlace vence en ${RESET_TOKEN_TTL_MINUTES} minutos. Si no solicitaste esto, ignora este correo.</p>
-      </div>`,
-  });
+  try {
+    await sendMail({
+      to: distributor.email,
+      subject: 'Recupera tu contraseña — TuStockApp',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
+          <h2>Recupera tu contraseña</h2>
+          <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta TuStockApp.</p>
+          <p><a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;">Restablecer contraseña</a></p>
+          <p style="color:#666;font-size:13px;">Este enlace vence en ${RESET_TOKEN_TTL_MINUTES} minutos. Si no solicitaste esto, ignora este correo.</p>
+        </div>`,
+    });
+  } catch (err) {
+    // No dejamos que un fallo de email (SMTP caído, timeout, etc.) tumbe toda
+    // la request con un 500/502 — el token ya quedó creado en la base, así
+    // que lo logueamos y seguimos (mismo patrón que el resto de los envíos
+    // transaccionales de la app).
+    console.error(`[${new Date().toISOString()}] Failed to send password reset email:`, err);
+  }
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<void> {

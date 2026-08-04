@@ -100,7 +100,8 @@ export async function getOrderForReceipt(distributorId: string, orderId: string)
 export async function updateOrderStatus(
   distributorId: string,
   orderId: string,
-  status: OrderStatus
+  status: OrderStatus,
+  estimatedDelivery?: { date?: string; time?: string }
 ) {
   const order = await prisma.order.findFirst({
     where: { id: orderId, distributorId },
@@ -122,6 +123,18 @@ export async function updateOrderStatus(
   // vuelve a reponer nada.
   const isNewlyCancelled = status === 'CANCELLED' && order.status !== 'CANCELLED';
 
+  // Fecha/hora estimada de entrega: opcional, cargada por la distribuidora
+  // al marcar el pedido como "En Proceso" (ver admin/orders/[id]/page.tsx).
+  // Solo se escriben si vino algo — así un cambio de estado posterior
+  // (a COMPLETED, por ejemplo) sin estos campos no los borra.
+  const estimatedDeliveryData: { estimatedDeliveryDate?: Date | null; estimatedDeliveryTime?: string | null } = {};
+  if (estimatedDelivery?.date) {
+    estimatedDeliveryData.estimatedDeliveryDate = new Date(`${estimatedDelivery.date}T00:00:00`);
+  }
+  if (estimatedDelivery?.time) {
+    estimatedDeliveryData.estimatedDeliveryTime = estimatedDelivery.time;
+  }
+
   return prisma.$transaction(async (tx) => {
     if (isNewlyCancelled) {
       for (const item of order.items) {
@@ -134,7 +147,7 @@ export async function updateOrderStatus(
 
     return tx.order.update({
       where: { id: orderId },
-      data: { status },
+      data: { status, ...estimatedDeliveryData },
       include: {
         client: true,
         items: { include: { product: { select: { name: true } } } },

@@ -4,8 +4,8 @@ import type { MetadataRoute } from 'next';
 // <link rel="manifest"> al <head> — no hace falta tocar layout.tsx para eso.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'StockApp — Portal de Compras',
-    short_name: 'StockApp',
+    name: 'TuStockApp — Portal de Compras',
+    short_name: 'TuStockApp',
     description: 'Accedé al catálogo de tu distribuidora y hacé pedidos online.',
     start_url: '/',
     display: 'standalone',
