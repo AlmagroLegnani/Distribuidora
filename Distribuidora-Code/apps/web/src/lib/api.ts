@@ -59,6 +59,8 @@ export interface ClientOrder {
   status: string;
   createdAt: string;
   notes: string | null;
+  estimatedDeliveryDate: string | null;
+  estimatedDeliveryTime: string | null;
   items: Array<{
     quantity: number;
     unitPrice: number;
