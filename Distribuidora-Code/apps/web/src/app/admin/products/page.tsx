@@ -385,8 +385,8 @@ export default function ProductsPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl">
-            <div className="flex items-center justify-between p-5 border-b">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b shrink-0">
               <h3 className="font-semibold text-gray-900">
                 {editProduct ? 'Editar Producto' : 'Nuevo Producto'}
               </h3>
@@ -397,7 +397,7 @@ export default function ProductsPage() {
                 ✕
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto">
               {formError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                   {formError}
@@ -563,7 +563,7 @@ export default function ProductsPage() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3 p-5 border-t">
+            <div className="flex justify-end gap-3 p-5 border-t shrink-0">
               <button onClick={() => setShowModal(false)} className="btn-secondary">
                 Cancelar
               </button>
