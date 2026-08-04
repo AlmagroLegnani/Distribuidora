@@ -188,6 +188,35 @@ export async function createContactRequest(payload: {
   });
 }
 
+export interface PushSubscriptionKeys {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+export async function subscribeToPush(
+  slug: string,
+  documento: string,
+  code: string,
+  subscription: PushSubscriptionKeys
+): Promise<void> {
+  await apiFetch(`/public/${slug}/push-subscribe`, {
+    method: 'POST',
+    body: JSON.stringify({ documento, code, subscription }),
+  });
+}
+
+export async function unsubscribeFromPush(
+  slug: string,
+  documento: string,
+  code: string,
+  endpoint: string
+): Promise<void> {
+  await apiFetch(`/public/${slug}/push-unsubscribe`, {
+    method: 'POST',
+    body: JSON.stringify({ documento, code, endpoint }),
+  });
+}
+
 export async function createOrder(
   slug: string,
   payload: {
