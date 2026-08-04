@@ -25,7 +25,7 @@ export default function PlatformSidebar() {
             S
           </div>
           <div>
-            <div className="font-semibold text-sm">StockApp</div>
+            <div className="font-semibold text-sm">TuStockApp</div>
             <div className="text-xs text-gray-400">Plataforma</div>
           </div>
         </div>

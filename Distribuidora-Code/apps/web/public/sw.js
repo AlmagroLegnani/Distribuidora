@@ -19,3 +19,29 @@ self.addEventListener('fetch', () => {
   // No-op a propósito — no interceptamos ni respondemos nada nosotros,
   // dejamos que el browser maneje el request normalmente.
 });
+
+// Recordatorio diario de pedido (ver reminderService.ts en la API). El
+// payload llega como JSON: { title, body, url }.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  const title = data.title || 'StockApp';
+  const options = {
+    body: data.body || 'No olvides hacer tu pedido.',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    data: { url: data.url || '/' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Al tocar la notificación, abrimos (o enfocamos) el catálogo de esa distribuidora.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(self.clients.openWindow(url));
+});

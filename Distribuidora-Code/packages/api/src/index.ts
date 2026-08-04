@@ -5,9 +5,18 @@ import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler';
 import routes from './routes';
 import { cleanupOldSentEmails } from './services/emailCleanupService';
+import { sendDailyOrderReminders } from './services/reminderService';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
+
+// Railway (como cualquier PaaS) pone la app detrás de su propio proxy/load
+// balancer, que agrega el header X-Forwarded-For con la IP real del cliente.
+// Sin esto, Express no confía en ese header y express-rate-limit tira
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR en cada request a una ruta con límite
+// de intentos (login, etc.) — "1" le dice que confíe en un solo hop de proxy
+// por delante, que es exactamente el caso acá.
+app.set('trust proxy', 1);
 
 // Security headers
 app.use(helmet());
@@ -55,5 +64,26 @@ setInterval(() => {
     console.error(`[${new Date().toISOString()}] [email-cleanup] Error inesperado:`, err)
   );
 }, EMAIL_CLEANUP_INTERVAL_MS);
+
+// Recordatorio diario de "hacé tu pedido" a los clientes que activaron
+// notificaciones. No hay un scheduler real en este stack (igual que la
+// limpieza de emails de arriba), así que revisamos cada 5 minutos si ya es
+// la hora (9am Uruguay = 12:00 UTC, todo el año, sin horario de verano) y si
+// todavía no lo mandamos hoy — el flag en memoria evita mandarlo dos veces
+// si el chequeo cae más de una vez dentro de la misma ventana de la hora.
+const REMINDER_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const REMINDER_HOUR_UTC = 12; // 9:00 Uruguay
+let lastReminderRunDate: string | null = null;
+setInterval(() => {
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  if (now.getUTCHours() !== REMINDER_HOUR_UTC) return;
+  if (lastReminderRunDate === todayKey) return;
+
+  lastReminderRunDate = todayKey;
+  sendDailyOrderReminders().catch((err) =>
+    console.error(`[${new Date().toISOString()}] [reminder] Error inesperado:`, err)
+  );
+}, REMINDER_CHECK_INTERVAL_MS);
 
 export default app;

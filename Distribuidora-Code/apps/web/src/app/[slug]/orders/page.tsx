@@ -31,6 +31,20 @@ function formatDate(date: string): string {
   }).format(new Date(date));
 }
 
+function formatEstimatedDelivery(order: ClientOrder): string | null {
+  if (!order.estimatedDeliveryDate && !order.estimatedDeliveryTime) return null;
+  const parts: string[] = [];
+  if (order.estimatedDeliveryDate) {
+    parts.push(
+      new Intl.DateTimeFormat('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(
+        new Date(order.estimatedDeliveryDate)
+      )
+    );
+  }
+  if (order.estimatedDeliveryTime) parts.push(order.estimatedDeliveryTime);
+  return parts.join(' - ');
+}
+
 export default function MyOrdersPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -118,18 +132,22 @@ export default function MyOrdersPage() {
               <div key={order.id} className="card overflow-hidden">
                 <button
                   onClick={() => setExpanded(isOpen ? null : order.id)}
-                  className="w-full flex items-center justify-between gap-4 p-4 text-left hover:bg-gray-50 transition-colors"
+                  className="w-full flex flex-col gap-2 p-4 text-left hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs font-semibold text-gray-500">
-                      #{order.id.slice(-8).toUpperCase()}
-                    </span>
-                    <span className="text-sm text-gray-600">{formatDate(order.createdAt)}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-gray-900">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-xs font-semibold text-gray-500 shrink-0">
+                        #{order.id.slice(-8).toUpperCase()}
+                      </span>
+                      <span className="text-xs text-gray-500 truncate">
+                        {formatDate(order.createdAt)}
+                      </span>
+                    </div>
+                    <span className="font-semibold text-gray-900 shrink-0">
                       {formatCurrency(order.total)}
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
                     <span
                       className={`text-xs font-medium px-2.5 py-1 rounded-full ${
                         STATUS_STYLES[order.status] || 'bg-gray-100 text-gray-700'
@@ -137,24 +155,35 @@ export default function MyOrdersPage() {
                     >
                       {STATUS_LABELS[order.status] || order.status}
                     </span>
-                    <svg
-                      className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
+                    {/* Señala explícitamente que la tarjeta es clickeable — la info
+                        de fecha/hora estimada ya se ve arriba al expandir, esto es
+                        solo la pista visual de "hacé click para ver más". */}
+                    <span className="flex items-center gap-1 text-xs font-medium text-blue-600 shrink-0">
+                      Ver detalle
+                      <svg
+                        className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </span>
                   </div>
                 </button>
 
                 {isOpen && (
                   <div className="border-t border-gray-100 p-4 space-y-2">
+                    {order.status === 'PROCESSING' && formatEstimatedDelivery(order) && (
+                      <p className="text-sm font-medium text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
+                        Entrega estimada: {formatEstimatedDelivery(order)}
+                      </p>
+                    )}
                     {order.notes && (
                       <p className="text-xs text-gray-500 italic">Nota: {order.notes}</p>
                     )}

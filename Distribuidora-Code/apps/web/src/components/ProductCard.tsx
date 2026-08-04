@@ -21,6 +21,7 @@ interface Product {
   ivaType: IvaType;
   stock: number;
   category: string | null;
+  imageUrl?: string | null;
 }
 
 export default function ProductCard({ product }: { product: Product }) {
@@ -49,6 +50,26 @@ export default function ProductCard({ product }: { product: Product }) {
 
   return (
     <div className="card p-4 flex flex-col gap-3">
+      {/* Foto */}
+      {product.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="w-full h-32 object-contain rounded-lg bg-gray-50"
+        />
+      ) : (
+        <div className="w-full h-32 rounded-lg bg-gray-50 flex items-center justify-center">
+          <svg className="w-8 h-8 text-gray-200" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex-1">
         <div className="flex items-start justify-between gap-2">
@@ -57,21 +78,15 @@ export default function ProductCard({ product }: { product: Product }) {
             {product.brand && (
               <span className="text-xs text-blue-600 font-medium block">{product.brand}</span>
             )}
-            {product.code && (
-              <span className="text-xs text-gray-400 font-mono">{product.code}</span>
-            )}
           </div>
-          <span
-            className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
-              remainingStock === 0
-                ? 'bg-red-100 text-red-700'
-                : remainingStock <= 5
-                ? 'bg-yellow-100 text-yellow-700'
-                : 'bg-green-100 text-green-700'
-            }`}
-          >
-            {remainingStock === 0 ? 'Sin stock' : `${remainingStock} disp.`}
-          </span>
+          {/* A propósito NO mostramos la cantidad exacta de stock al cliente
+              (solo si se agotó) — la distribuidora no quiere que sepan
+              cuántas unidades quedan, solo si el producto está disponible o no. */}
+          {remainingStock === 0 && (
+            <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+              Sin stock
+            </span>
+          )}
         </div>
         {product.description && (
           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
@@ -80,7 +95,7 @@ export default function ProductCard({ product }: { product: Product }) {
 
       {/* Price */}
       <div>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2 flex-wrap">
           {product.originalPrice != null && (
             <span
               className="text-sm text-gray-400 line-through"
@@ -101,11 +116,11 @@ export default function ProductCard({ product }: { product: Product }) {
 
       {/* Add to cart */}
       {remainingStock > 0 ? (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+        <div className="space-y-2">
+          <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden w-full">
             <button
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="w-8 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
+              className="flex-1 h-11 flex items-center justify-center text-lg text-gray-600 hover:bg-gray-100 transition-colors"
             >
               −
             </button>
@@ -118,18 +133,18 @@ export default function ProductCard({ product }: { product: Product }) {
                 const val = parseInt(e.target.value, 10);
                 if (!isNaN(val)) setQuantity(Math.min(Math.max(1, val), remainingStock));
               }}
-              className="w-12 text-center text-sm font-medium border-0 focus:outline-none"
+              className="w-14 text-center text-sm font-medium border-0 focus:outline-none shrink-0"
             />
             <button
               onClick={() => setQuantity(Math.min(remainingStock, quantity + 1))}
-              className="w-8 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
+              className="flex-1 h-11 flex items-center justify-center text-lg text-gray-600 hover:bg-gray-100 transition-colors"
             >
               +
             </button>
           </div>
           <button
             onClick={handleAdd}
-            className={`flex-1 py-2 text-sm font-medium rounded-xl transition-all ${
+            className={`w-full py-2 text-sm font-medium rounded-xl transition-all ${
               added
                 ? 'bg-green-500 text-white'
                 : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'

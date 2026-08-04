@@ -104,17 +104,24 @@ export async function generateAndSendAccessCode(distributorId: string, clientId:
   const documentLabel = client.rut ? 'RUT' : 'Cédula';
   const documentValue = client.rut || client.cedula;
 
-  await sendMail({
-    to: client.email,
-    subject: `Tu código de acceso a ${client.distributor.name}`,
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
-        <h2>Bienvenido a ${client.distributor.name}</h2>
-        <p>Ya podés acceder al catálogo con tu ${documentLabel} (<strong>${documentValue}</strong>) y este código de acceso:</p>
-        <p style="font-size:24px;font-weight:bold;letter-spacing:3px;background:#f3f4f6;padding:14px 20px;border-radius:8px;text-align:center;">${accessCode}</p>
-        <p style="color:#666;font-size:13px;">Guarda este código, lo vas a necesitar cada vez que quieras ingresar a hacer un pedido.</p>
-      </div>`,
-  });
+  try {
+    await sendMail({
+      to: client.email,
+      subject: `Tu código de acceso a ${client.distributor.name}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
+          <h2>Bienvenido a ${client.distributor.name}</h2>
+          <p>Ya podés acceder al catálogo con tu ${documentLabel} (<strong>${documentValue}</strong>) y este código de acceso:</p>
+          <p style="font-size:24px;font-weight:bold;letter-spacing:3px;background:#f3f4f6;padding:14px 20px;border-radius:8px;text-align:center;">${accessCode}</p>
+          <p style="color:#666;font-size:13px;">Guarda este código, lo vas a necesitar cada vez que quieras ingresar a hacer un pedido.</p>
+        </div>`,
+    });
+  } catch (err) {
+    // El código ya quedó guardado en la base (arriba). Si el email falla
+    // (SMTP caído, timeout, etc.) no rompemos la request entera — la
+    // distribuidora puede reintentar el envío o pasarle el código a mano.
+    console.error(`[${new Date().toISOString()}] Failed to send client access code email:`, err);
+  }
 
   return updated;
 }
@@ -152,7 +159,7 @@ export async function verifyClientAccessCode(distributorId: string, documento: s
   }
 
   if (!client.accessCode || client.accessCode.trim().toUpperCase() !== code.trim().toUpperCase()) {
-    throw new AppError(401, 'Invalid access code');
+    throw new AppError(401, 'Código de acceso incorrecto. Revisá que esté bien escrito o contactá a tu distribuidora.');
   }
 
   return client;

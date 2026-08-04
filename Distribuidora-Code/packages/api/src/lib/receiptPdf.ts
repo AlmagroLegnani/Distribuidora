@@ -29,7 +29,7 @@ export interface ReceiptOrder {
 /**
  * Muestra solo los primeros 4 dígitos del RUT/Cédula y enmascara el resto
  * (ej. "50912345" → "5091****") — este comprobante se manda por email, y
- * StockApp no debería exponer el documento completo del cliente en un PDF
+ * TuStockApp no debería exponer el documento completo del cliente en un PDF
  * que circula por correo.
  */
 function maskDocument(value: string): string {

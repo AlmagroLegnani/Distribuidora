@@ -38,6 +38,16 @@ interface DistributorDetail {
       }
     | null;
   _count: { products: number; clients: number; orders: number };
+  clients: Array<{
+    id: string;
+    rut: string | null;
+    cedula: string | null;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    accessCode: string | null;
+    accessCodeSentAt: string | null;
+  }>;
 }
 
 function formatDate(date: string | null): string {
@@ -64,6 +74,7 @@ export default function DistributorDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [impersonating, setImpersonating] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -128,6 +139,28 @@ export default function DistributorDetailPage() {
       alert(err instanceof Error ? err.message : 'Error al reenviar el acceso');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleImpersonate() {
+    if (
+      !distributor ||
+      !confirm(
+        `¿Entrar como ${distributor.name}? Vas a ver y poder usar su panel como si fueras ella. Queda registrado que lo hiciste.`
+      )
+    )
+      return;
+    setImpersonating(true);
+    try {
+      const result = await api.post<{ token: string }>(`/distributors/${id}/impersonate`, {});
+      // Pestaña nueva, no la actual — así tu sesión de super admin no se toca
+      // para nada. /impersonate es una landing pública (fuera de /admin) que
+      // guarda el token y te redirige al panel del distribuidor.
+      window.open(`/impersonate?token=${encodeURIComponent(result.token)}`, '_blank');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al entrar como esta distribuidora');
+    } finally {
+      setImpersonating(false);
     }
   }
 
@@ -297,11 +330,63 @@ export default function DistributorDetailPage() {
         </div>
       )}
 
-      {/* Antes apuntaba a http://localhost:3002 (apps/admin en su propio puerto).
-          En la app unificada el login del distribuidor vive en /login, mismo origen. */}
-      <Link href="/login" target="_blank" className="text-xs text-blue-600 hover:text-blue-700">
-        Abrir backoffice del distribuidor →
-      </Link>
+      <div className="card p-5 space-y-2">
+        <h3 className="font-semibold text-gray-900">Soporte</h3>
+        <p className="text-sm text-gray-500">
+          Para entrar a resolver algo puntual sin pedirle nada a la distribuidora (ni conocer ni
+          poder ver su contraseña real — eso no es posible, se guarda de forma irreversible).
+        </p>
+        <div className="flex items-center gap-3">
+          <button onClick={handleImpersonate} disabled={impersonating} className="btn-primary text-xs">
+            {impersonating ? 'Generando acceso...' : 'Entrar como esta distribuidora →'}
+          </button>
+          {/* Antes apuntaba a http://localhost:3002 (apps/admin en su propio puerto).
+              En la app unificada el login del distribuidor vive en /login, mismo origen. */}
+          <Link href="/login" target="_blank" className="text-xs text-blue-600 hover:text-blue-700">
+            O abrir su pantalla de login →
+          </Link>
+        </div>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="p-4 border-b">
+          <h3 className="font-semibold text-gray-900">Clientes ({distributor.clients.length})</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            RUT/Cédula y código de acceso de los clientes de esta distribuidora — por si algún día
+            hay que ayudar a alguno directamente.
+          </p>
+        </div>
+        {distributor.clients.length === 0 ? (
+          <p className="p-4 text-sm text-gray-400">Todavía no tiene clientes cargados.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium text-gray-600">Cliente</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-600">RUT/Cédula</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-600">Contacto</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-600">Código de acceso</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {distributor.clients.map((c) => (
+                  <tr key={c.id}>
+                    <td className="px-4 py-2 font-medium text-gray-900">{c.name || '—'}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-gray-600">{c.rut || c.cedula || '—'}</td>
+                    <td className="px-4 py-2 text-gray-600 text-xs">
+                      {c.email || '—'} {c.phone && `· ${c.phone}`}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs">
+                      {c.accessCode || <span className="text-gray-400 font-sans">no enviado</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

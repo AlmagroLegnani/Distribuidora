@@ -138,7 +138,7 @@ export async function createPaymentDueNotice(
   try {
     await sendMail({
       to: distributor.email,
-      subject: 'Tu plan de StockApp está por vencer',
+      subject: 'Tu plan de TuStockApp está por vencer',
       html: buildPaymentDueEmailHtml(distributor.name, message),
     });
     await prisma.stockAlert.update({

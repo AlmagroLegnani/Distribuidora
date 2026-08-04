@@ -169,10 +169,10 @@ export async function createDistributor(input: CreateDistributorInput) {
   try {
     await sendMail({
       to: distributor.email,
-      subject: `Tu acceso a StockApp — ${distributor.name}`,
+      subject: `Tu acceso a TuStockApp — ${distributor.name}`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
-          <h2>Bienvenido a StockApp</h2>
+          <h2>Bienvenido a TuStockApp</h2>
           <p>Ya dimos de alta a <strong>${distributor.name}</strong> en la plataforma. Para ingresar a tu backoffice usá tu email y este código de acceso:</p>
           <p style="font-size:24px;font-weight:bold;letter-spacing:3px;background:#f3f4f6;padding:14px 20px;border-radius:8px;text-align:center;">${accessCode}</p>
           <p>Ingresá desde <a href="${WEB_URL}">${WEB_URL}</a> haciendo clic en "Soy distribuidora", o directo en tu panel.</p>
@@ -199,11 +199,61 @@ export async function getDistributorDetail(distributorId: string) {
         },
       },
       _count: { select: { products: true, clients: true, orders: true } },
+      // Para que el super admin pueda resolver algo puntual sin depender de
+      // la distribuidora (ej: un cliente perdió su código y no hay forma de
+      // contactar a la distribuidora en ese momento). El código de acceso
+      // del cliente se guarda sin hashear (no es una contraseña real, es más
+      // un código de invitación), así que sí se puede mostrar acá.
+      clients: {
+        where: { active: true },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          rut: true,
+          cedula: true,
+          name: true,
+          email: true,
+          phone: true,
+          accessCode: true,
+          accessCodeSentAt: true,
+        },
+      },
     },
   });
 
   if (!distributor) throw new AppError(404, 'Distributor not found');
   return distributor;
+}
+
+/**
+ * "Entrar como esta distribuidora": genera un token de sesión de distribuidor
+ * válido por poco tiempo (soporte puntual, no un acceso permanente) SIN
+ * necesitar ni ver su contraseña real — eso es imposible de todos modos,
+ * las contraseñas se guardan hasheadas (bcrypt, de un solo sentido). Queda
+ * registrado en ImpersonationLog quién lo usó y cuándo.
+ */
+export async function impersonateDistributor(platformAdminId: string, distributorId: string) {
+  const distributor = await prisma.distributor.findUnique({
+    where: { id: distributorId },
+    select: { id: true, email: true, active: true },
+  });
+  if (!distributor) throw new AppError(404, 'Distributor not found');
+  if (!distributor.active) {
+    throw new AppError(400, 'Esta distribuidora está suspendida, no se puede entrar como ella');
+  }
+
+  await prisma.impersonationLog.create({ data: { platformAdminId, distributorId } });
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new AppError(500, 'JWT_SECRET not configured', false);
+
+  const token = jwt.sign(
+    { distributorId: distributor.id, email: distributor.email, role: 'distributor' },
+    secret,
+    { expiresIn: '2h' }
+  );
+
+  return { token };
 }
 
 export async function suspend(distributorId: string) {

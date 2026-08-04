@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { URUGUAY_DEPARTMENTS } from '../lib/uruguayDepartments';
+import { validateRUT, validateCedula } from '../lib/document';
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
 export const loginSchema = z.object({
@@ -46,11 +47,34 @@ const onlyDigits = (val: unknown): unknown => (typeof val === 'string' ? val.rep
 // have the latter) — enforced below with .refine(), and at the DB level with
 // a CHECK constraint (see packages/db/prisma/migrations).
 const clientBaseSchema = z.object({
-  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
-  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
+  rut: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'RUT inválido')
+      .max(12)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateRUT(val), {
+        message: 'El RUT ingresado no es válido (dígito verificador incorrecto)',
+      })
+  ),
+  cedula: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'Cédula inválida')
+      .max(8)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateCedula(val), {
+        message: 'La Cédula ingresada no es válida (dígito verificador incorrecto)',
+      })
+  ),
   name: z.string().max(200).optional().nullable(),
   email: z.string().email('El email es obligatorio para poder enviar el código de acceso'),
   phone: z.string().max(20).optional().nullable(),
+  address: z.string().max(300).optional().nullable(),
 });
 
 export const createClientSchema = clientBaseSchema.refine(
@@ -58,11 +82,26 @@ export const createClientSchema = clientBaseSchema.refine(
   { message: 'Debes ingresar el RUT o la Cédula del cliente', path: ['rut'] }
 );
 
-export const updateClientSchema = clientBaseSchema.omit({ rut: true, cedula: true }).partial();
+// A diferencia de antes, sí se puede editar el RUT/Cédula acá (antes se
+// omitían por completo, era imposible corregir un error de tipeo sin
+// desactivar y recargar el cliente entero). `.partial()` hace que todos los
+// campos sean opcionales — es una edición parcial, no hace falta repetir
+// "al menos uno de los dos" en cada guardado.
+export const updateClientSchema = clientBaseSchema.partial();
 
 // ─── Order ────────────────────────────────────────────────────────────────
 export const orderStatusSchema = z.object({
   status: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED']),
+  // Solo tienen sentido cuando status es PROCESSING, pero se validan acá
+  // igual para cualquier request — el servicio decide si los guarda o no.
+  // Fecha en formato "YYYY-MM-DD" (input type=date); hora como texto libre
+  // (ej. "14:30") ya que es opcional e independiente de la fecha.
+  estimatedDeliveryDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido')
+    .optional()
+    .or(z.literal('')),
+  estimatedDeliveryTime: z.string().max(20).optional().or(z.literal('')),
 });
 
 // ─── Public order creation ─────────────────────────────────────────────────
@@ -106,7 +145,7 @@ export const markPaidSchema = z.object({
 });
 
 // ─── Alta de distribuidora por la plataforma ─────────────────────────────────
-// Ya no hay autoregistro público: el equipo de StockApp carga la distribuidora
+// Ya no hay autoregistro público: el equipo de TuStockApp carga la distribuidora
 // desde el panel de superadmin. El sistema genera un código de acceso único y
 // se lo envía por email — ese código funciona como su contraseña inicial (ver
 // platformService.createDistributor).
@@ -127,6 +166,7 @@ const RESERVED_SLUGS = [
   'signup',
   'api',
   'health',
+  'impersonate',
 ];
 
 export const createDistributorSchema = z.object({
@@ -142,8 +182,30 @@ export const createDistributorSchema = z.object({
     }),
   phone: z.string().min(1, 'El teléfono es obligatorio').max(20),
   // Igual que en Client: opcional, uno u otro, se limpia a solo dígitos.
-  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
-  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
+  rut: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'RUT inválido')
+      .max(12)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateRUT(val), {
+        message: 'El RUT ingresado no es válido (dígito verificador incorrecto)',
+      })
+  ),
+  cedula: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'Cédula inválida')
+      .max(8)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateCedula(val), {
+        message: 'La Cédula ingresada no es válida (dígito verificador incorrecto)',
+      })
+  ),
   // Dirección de texto libre (no se usa para filtrar) + departamento de una
   // lista fija (sí se usa para filtrar en /distribuidoras) — ambos opcionales
   // porque hay distribuidoras ya cargadas sin este dato.
@@ -179,6 +241,25 @@ export const verifyAccessCodeSchema = z.object({
   documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
 });
 
+// ─── Push notifications (recordatorio diario de pedido) ─────────────────────
+export const pushSubscribeSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
+  subscription: z.object({
+    endpoint: z.string().url(),
+    keys: z.object({
+      p256dh: z.string().min(1),
+      auth: z.string().min(1),
+    }),
+  }),
+});
+
+export const pushUnsubscribeSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
+  endpoint: z.string().url(),
+});
+
 // ─── Settings ─────────────────────────────────────────────────────────────
 export const updateSettingsSchema = z.object({
   notificationEmail: z.string().email().optional().nullable(),
@@ -191,8 +272,30 @@ export const updateSettingsSchema = z.object({
 // que en Client, opcional y uno u otro (no forzamos ninguno de los dos acá:
 // muchas distribuidoras ya existentes no lo tienen cargado).
 export const updateDistributorProfileSchema = z.object({
-  rut: z.preprocess(onlyDigits, z.string().min(7, 'RUT inválido').max(12).optional().nullable()),
-  cedula: z.preprocess(onlyDigits, z.string().min(7, 'Cédula inválida').max(8).optional().nullable()),
+  rut: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'RUT inválido')
+      .max(12)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateRUT(val), {
+        message: 'El RUT ingresado no es válido (dígito verificador incorrecto)',
+      })
+  ),
+  cedula: z.preprocess(
+    onlyDigits,
+    z
+      .string()
+      .min(7, 'Cédula inválida')
+      .max(8)
+      .optional()
+      .nullable()
+      .refine((val) => !val || validateCedula(val), {
+        message: 'La Cédula ingresada no es válida (dígito verificador incorrecto)',
+      })
+  ),
   address: z.string().max(300).optional().nullable(),
   city: z.enum(URUGUAY_DEPARTMENTS).optional().nullable(),
 });
@@ -231,6 +334,8 @@ export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 export type OrderStatusInput = z.infer<typeof orderStatusSchema>;
 export type CreatePublicOrderInput = z.infer<typeof createPublicOrderSchema>;
 export type VerifyAccessCodeInput = z.infer<typeof verifyAccessCodeSchema>;
+export type PushSubscribeInput = z.infer<typeof pushSubscribeSchema>;
+export type PushUnsubscribeInput = z.infer<typeof pushUnsubscribeSchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;

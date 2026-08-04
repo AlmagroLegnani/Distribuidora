@@ -6,6 +6,8 @@ import {
   createPublicOrderSchema,
   verifyAccessCodeSchema,
   createContactRequestSchema,
+  pushSubscribeSchema,
+  pushUnsubscribeSchema,
 } from '../validations/schemas';
 
 const router = Router();
@@ -47,6 +49,22 @@ router.post(
   publicWriteLimiter,
   validate(createContactRequestSchema),
   publicController.createContactRequest
+);
+
+// POST /api/public/:slug/push-subscribe  — activar recordatorio diario de pedido
+router.post(
+  '/:slug/push-subscribe',
+  publicWriteLimiter,
+  validate(pushSubscribeSchema),
+  publicController.subscribePush
+);
+
+// POST /api/public/:slug/push-unsubscribe  — desactivar recordatorio en este dispositivo
+router.post(
+  '/:slug/push-unsubscribe',
+  publicWriteLimiter,
+  validate(pushUnsubscribeSchema),
+  publicController.unsubscribePush
 );
 
 export default router;

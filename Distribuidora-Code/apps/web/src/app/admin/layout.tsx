@@ -14,7 +14,7 @@ import LowStockModal from '@/components/admin/LowStockModal';
 // forma anónima al instalar, así que no hay forma de saber quién está
 // logueada para personalizarlo más que esto.
 export const metadata: Metadata = {
-  title: 'Panel de Distribuidor — StockApp',
+  title: 'Panel de Distribuidor — TuStockApp',
   manifest: '/admin-manifest.webmanifest',
 };
 
