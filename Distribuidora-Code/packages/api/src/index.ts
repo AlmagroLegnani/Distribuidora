@@ -9,6 +9,14 @@ import { cleanupOldSentEmails } from './services/emailCleanupService';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
+// Railway (como cualquier PaaS) pone la app detrás de su propio proxy/load
+// balancer, que agrega el header X-Forwarded-For con la IP real del cliente.
+// Sin esto, Express no confía en ese header y express-rate-limit tira
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR en cada request a una ruta con límite
+// de intentos (login, etc.) — "1" le dice que confíe en un solo hop de proxy
+// por delante, que es exactamente el caso acá.
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet());
 
