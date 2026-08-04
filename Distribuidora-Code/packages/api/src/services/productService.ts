@@ -1,8 +1,20 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { checkLowStock } from './stockAlertService';
+import { notifyClientsOfPromotion } from './promotionNotificationService';
 import type { PaginationParams } from '../lib/pagination';
 import type { CreateProductInput, UpdateProductInput } from '../validations/schemas';
+
+/** No dejamos activar una promoción sin texto — si no, el cliente vería el
+ * badge de "Promo" en el catálogo sin ninguna explicación de qué es. */
+function assertValidPromotion(promotionActive?: boolean, promotionText?: string | null): void {
+  if (promotionActive && (!promotionText || !promotionText.trim())) {
+    throw new AppError(
+      400,
+      'Escribí una descripción para la promoción antes de activarla (ej: "Llevate de regalo un marcador Bic").'
+    );
+  }
+}
 
 export async function listProducts(
   distributorId: string,
@@ -55,10 +67,19 @@ function isDuplicateCodeError(err: unknown): boolean {
 }
 
 export async function createProduct(distributorId: string, data: CreateProductInput) {
+  assertValidPromotion(data.promotionActive, data.promotionText);
   try {
-    return await prisma.product.create({
+    const product = await prisma.product.create({
       data: { distributorId, ...data },
     });
+    // Un producto nuevo que ya nace con la promoción activada también avisa
+    // a los clientes — mismo criterio que activarla después en una edición.
+    if (product.promotionActive && product.promotionText) {
+      notifyClientsOfPromotion(distributorId, product.name, product.promotionText).catch((err) =>
+        console.error(`[${new Date().toISOString()}] [promotion] Error notificando:`, err)
+      );
+    }
+    return product;
   } catch (err) {
     if (isDuplicateCodeError(err)) {
       throw new AppError(409, `Ya tenés otro producto tuyo con el código "${data.code}". Elegí otro código o dejalo vacío.`);
@@ -72,7 +93,11 @@ export async function updateProduct(
   productId: string,
   data: UpdateProductInput
 ) {
-  await getProductById(distributorId, productId);
+  const previous = await getProductById(distributorId, productId);
+  assertValidPromotion(
+    data.promotionActive ?? previous.promotionActive,
+    data.promotionText !== undefined ? data.promotionText : previous.promotionText
+  );
   try {
     const product = await prisma.product.update({
       where: { id: productId },
@@ -80,6 +105,14 @@ export async function updateProduct(
     });
     if (data.stock !== undefined) {
       await checkLowStock(distributorId, productId);
+    }
+    // Solo avisamos en la transición apagada -> prendida, no en cada edición
+    // mientras ya está activa (si no, se le manda un push de nuevo cada vez
+    // que la distribuidora corrige una coma en el texto de la promo).
+    if (!previous.promotionActive && product.promotionActive && product.promotionText) {
+      notifyClientsOfPromotion(distributorId, product.name, product.promotionText).catch((err) =>
+        console.error(`[${new Date().toISOString()}] [promotion] Error notificando:`, err)
+      );
     }
     return product;
   } catch (err) {
