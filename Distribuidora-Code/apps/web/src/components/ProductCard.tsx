@@ -101,7 +101,7 @@ export default function ProductCard({ product }: { product: Product }) {
 
       {/* Price */}
       <div>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2 flex-wrap">
           {product.originalPrice != null && (
             <span
               className="text-sm text-gray-400 line-through"

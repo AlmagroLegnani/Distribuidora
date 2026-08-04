@@ -159,7 +159,7 @@ export async function verifyClientAccessCode(distributorId: string, documento: s
   }
 
   if (!client.accessCode || client.accessCode.trim().toUpperCase() !== code.trim().toUpperCase()) {
-    throw new AppError(401, 'Invalid access code');
+    throw new AppError(401, 'Código de acceso incorrecto. Revisá que esté bien escrito o contactá a tu distribuidora.');
   }
 
   return client;
