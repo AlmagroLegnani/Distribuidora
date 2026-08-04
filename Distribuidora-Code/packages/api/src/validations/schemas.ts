@@ -241,6 +241,25 @@ export const verifyAccessCodeSchema = z.object({
   documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
 });
 
+// ─── Push notifications (recordatorio diario de pedido) ─────────────────────
+export const pushSubscribeSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
+  subscription: z.object({
+    endpoint: z.string().url(),
+    keys: z.object({
+      p256dh: z.string().min(1),
+      auth: z.string().min(1),
+    }),
+  }),
+});
+
+export const pushUnsubscribeSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
+  endpoint: z.string().url(),
+});
+
 // ─── Settings ─────────────────────────────────────────────────────────────
 export const updateSettingsSchema = z.object({
   notificationEmail: z.string().email().optional().nullable(),
@@ -315,6 +334,8 @@ export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 export type OrderStatusInput = z.infer<typeof orderStatusSchema>;
 export type CreatePublicOrderInput = z.infer<typeof createPublicOrderSchema>;
 export type VerifyAccessCodeInput = z.infer<typeof verifyAccessCodeSchema>;
+export type PushSubscribeInput = z.infer<typeof pushSubscribeSchema>;
+export type PushUnsubscribeInput = z.infer<typeof pushUnsubscribeSchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;

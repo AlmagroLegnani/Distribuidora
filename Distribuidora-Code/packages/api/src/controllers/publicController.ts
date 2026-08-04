@@ -4,6 +4,7 @@ import * as orderService from '../services/orderService';
 import * as clientService from '../services/clientService';
 import * as clientPriceService from '../services/clientPriceService';
 import * as contactRequestService from '../services/contactRequestService';
+import * as pushSubscriptionService from '../services/pushSubscriptionService';
 import { sendOrderNotifications } from '../services/notificationService';
 import { AppError } from '../middleware/errorHandler';
 
@@ -280,6 +281,56 @@ export async function createContactRequest(
   try {
     const request = await contactRequestService.create(req.body);
     res.status(201).json({ id: request.id });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Cliente activa los recordatorios de pedido en su navegador. */
+export async function subscribePush(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code, subscription } = req.body as {
+      documento: string;
+      code: string;
+      subscription: { endpoint: string; keys: { p256dh: string; auth: string } };
+    };
+    const client = await clientService.verifyClientAccessCode(distributor.id, documento, code);
+    await pushSubscriptionService.saveSubscription(distributor.id, client.id, subscription);
+
+    res.status(201).json({ subscribed: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Cliente desactiva los recordatorios en este navegador/dispositivo. */
+export async function unsubscribePush(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code, endpoint } = req.body as {
+      documento: string;
+      code: string;
+      endpoint: string;
+    };
+    const client = await clientService.verifyClientAccessCode(distributor.id, documento, code);
+    await pushSubscriptionService.removeSubscription(client.id, endpoint);
+
+    res.json({ subscribed: false });
   } catch (err) {
     next(err);
   }

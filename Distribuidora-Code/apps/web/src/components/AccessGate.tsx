@@ -6,6 +6,7 @@ import { verifyAccessCode, Distributor } from '@/lib/api';
 import { loadAccess, saveAccess } from '@/lib/access';
 import PortalHeader from './PortalHeader';
 import PortalHeaderMinimal from './PortalHeaderMinimal';
+import PushNotificationPrompt from './PushNotificationPrompt';
 
 interface Props {
   slug: string;
@@ -66,7 +67,10 @@ export default function AccessGate({ slug, distributor, children }: Props) {
     return (
       <div className="min-h-screen bg-gray-50">
         <PortalHeader distributor={distributor} slug={slug} />
-        <main className="max-w-6xl mx-auto px-4 py-6 pb-20 sm:pb-6">{children}</main>
+        <main className="max-w-6xl mx-auto px-4 py-6 pb-20 sm:pb-6">
+          <PushNotificationPrompt slug={slug} />
+          {children}
+        </main>
       </div>
     );
   }
