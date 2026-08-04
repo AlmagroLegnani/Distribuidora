@@ -92,6 +92,16 @@ export const updateClientSchema = clientBaseSchema.partial();
 // ─── Order ────────────────────────────────────────────────────────────────
 export const orderStatusSchema = z.object({
   status: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED']),
+  // Solo tienen sentido cuando status es PROCESSING, pero se validan acá
+  // igual para cualquier request — el servicio decide si los guarda o no.
+  // Fecha en formato "YYYY-MM-DD" (input type=date); hora como texto libre
+  // (ej. "14:30") ya que es opcional e independiente de la fecha.
+  estimatedDeliveryDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido')
+    .optional()
+    .or(z.literal('')),
+  estimatedDeliveryTime: z.string().max(20).optional().or(z.literal('')),
 });
 
 // ─── Public order creation ─────────────────────────────────────────────────

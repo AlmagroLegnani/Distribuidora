@@ -10,6 +10,8 @@ interface OrderDetail {
   total: number;
   status: OrderStatus;
   notes: string | null;
+  estimatedDeliveryDate: string | null;
+  estimatedDeliveryTime: string | null;
   createdAt: string;
   updatedAt: string;
   client: {
@@ -42,6 +44,9 @@ export default function OrderDetailPage() {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
   const [printing, setPrinting] = useState(false);
+  const [showDeliveryForm, setShowDeliveryForm] = useState(false);
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [deliveryTime, setDeliveryTime] = useState('');
 
   useEffect(() => {
     api
@@ -51,20 +56,39 @@ export default function OrderDetailPage() {
       .finally(() => setLoading(false));
   }, [params.id]);
 
-  async function changeStatus(newStatus: OrderStatus) {
+  async function changeStatus(
+    newStatus: OrderStatus,
+    estimatedDelivery?: { date?: string; time?: string }
+  ) {
     if (!order) return;
-    if (!confirm(`¿Cambiar estado a "${STATUS_LABELS[newStatus]}"?`)) return;
     setUpdating(true);
     try {
       const updated = await api.patch<OrderDetail>(`/orders/${order.id}/status`, {
         status: newStatus,
+        estimatedDeliveryDate: estimatedDelivery?.date || undefined,
+        estimatedDeliveryTime: estimatedDelivery?.time || undefined,
       });
       setOrder(updated);
+      setShowDeliveryForm(false);
+      setDeliveryDate('');
+      setDeliveryTime('');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error al actualizar estado');
     } finally {
       setUpdating(false);
     }
+  }
+
+  function handleNextStatusClick(newStatus: OrderStatus) {
+    // Al marcar "En Proceso" ofrecemos cargar la fecha/hora estimada de
+    // entrega antes de confirmar, en vez del confirm() genérico — es la
+    // info que después ve el cliente en el seguimiento de su pedido.
+    if (newStatus === 'PROCESSING') {
+      setShowDeliveryForm(true);
+      return;
+    }
+    if (!confirm(`¿Cambiar estado a "${STATUS_LABELS[newStatus]}"?`)) return;
+    changeStatus(newStatus);
   }
 
   async function handlePrintReceipt() {
@@ -121,37 +145,103 @@ export default function OrderDetailPage() {
             </h2>
             <p className="text-sm text-gray-500 mt-1">{formatDate(order.createdAt)}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-end gap-1">
             <span className={`text-sm font-medium px-3 py-1 rounded-full ${STATUS_BADGE[order.status]}`}>
               {STATUS_LABELS[order.status]}
             </span>
+            {(order.estimatedDeliveryDate || order.estimatedDeliveryTime) && (
+              <span className="text-xs text-gray-500">
+                Entrega estimada:{' '}
+                {order.estimatedDeliveryDate &&
+                  new Intl.DateTimeFormat('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(
+                    new Date(order.estimatedDeliveryDate)
+                  )}
+                {order.estimatedDeliveryTime && ` ${order.estimatedDeliveryTime}`}
+              </span>
+            )}
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
-          {nextStatus && (
+          {nextStatus && !showDeliveryForm && (
             <button
-              onClick={() => changeStatus(nextStatus)}
+              onClick={() => handleNextStatusClick(nextStatus)}
               disabled={updating}
               className="btn-primary"
             >
               {updating ? 'Actualizando...' : `Marcar como "${STATUS_LABELS[nextStatus]}"`}
             </button>
           )}
-          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && !showDeliveryForm && (
             <button
-              onClick={() => changeStatus('CANCELLED')}
+              onClick={() => {
+                if (confirm('¿Cambiar estado a "Cancelado"?')) changeStatus('CANCELLED');
+              }}
               disabled={updating}
               className="btn-danger"
             >
               Cancelar Pedido
             </button>
           )}
-          <button onClick={handlePrintReceipt} disabled={printing} className="btn-secondary">
-            {printing ? 'Generando...' : 'Imprimir comprobante'}
-          </button>
+          {!showDeliveryForm && (
+            <button onClick={handlePrintReceipt} disabled={printing} className="btn-secondary">
+              {printing ? 'Generando...' : 'Imprimir comprobante'}
+            </button>
+          )}
         </div>
+
+        {/* Formulario de fecha/hora estimada de entrega, al marcar "En Proceso" */}
+        {showDeliveryForm && (
+          <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+            <p className="text-sm font-medium text-gray-700">
+              Fecha y hora estimada de entrega (opcional)
+            </p>
+            <p className="text-xs text-gray-400">
+              Si las completás, el cliente las va a ver en el seguimiento de su pedido.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Fecha</label>
+                <input
+                  type="date"
+                  value={deliveryDate}
+                  onChange={(e) => setDeliveryDate(e.target.value)}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Hora</label>
+                <input
+                  type="time"
+                  value={deliveryTime}
+                  onChange={(e) => setDeliveryTime(e.target.value)}
+                  className="input"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => changeStatus('PROCESSING', { date: deliveryDate, time: deliveryTime })}
+                disabled={updating}
+                className="btn-primary"
+              >
+                {updating ? 'Actualizando...' : 'Confirmar "En Proceso"'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeliveryForm(false);
+                  setDeliveryDate('');
+                  setDeliveryTime('');
+                }}
+                disabled={updating}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
         <p className="text-xs text-gray-400 mt-2">
           Genera un comprobante de pedido en PDF (no es una factura fiscal electrónica) y, si el cliente
           tiene email registrado, se lo envía automáticamente.

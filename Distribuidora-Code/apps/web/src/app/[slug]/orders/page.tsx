@@ -31,6 +31,20 @@ function formatDate(date: string): string {
   }).format(new Date(date));
 }
 
+function formatEstimatedDelivery(order: ClientOrder): string | null {
+  if (!order.estimatedDeliveryDate && !order.estimatedDeliveryTime) return null;
+  const parts: string[] = [];
+  if (order.estimatedDeliveryDate) {
+    parts.push(
+      new Intl.DateTimeFormat('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(
+        new Date(order.estimatedDeliveryDate)
+      )
+    );
+  }
+  if (order.estimatedDeliveryTime) parts.push(order.estimatedDeliveryTime);
+  return parts.join(' - ');
+}
+
 export default function MyOrdersPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -155,6 +169,11 @@ export default function MyOrdersPage() {
 
                 {isOpen && (
                   <div className="border-t border-gray-100 p-4 space-y-2">
+                    {order.status === 'PROCESSING' && formatEstimatedDelivery(order) && (
+                      <p className="text-sm font-medium text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
+                        Entrega estimada: {formatEstimatedDelivery(order)}
+                      </p>
+                    )}
                     {order.notes && (
                       <p className="text-xs text-gray-500 italic">Nota: {order.notes}</p>
                     )}
