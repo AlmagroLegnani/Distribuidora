@@ -9,6 +9,7 @@ import { logout } from '@/lib/platform/auth';
 // app vivía sola en su propio puerto (3003).
 const navItems = [
   { href: '/platform', label: 'Distribuidoras' },
+  { href: '/platform/balance', label: 'Balance Estadístico' },
   { href: '/platform/contact-requests', label: 'Solicitudes' },
   { href: '/platform/plans', label: 'Planes' },
   { href: '/platform/account', label: 'Mi cuenta' },

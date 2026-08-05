@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import * as platformService from '../services/platformService';
 import * as contactRequestService from '../services/contactRequestService';
+import * as statsService from '../services/statsService';
 import type { PlatformAuthRequest } from '../middleware/platformAuth';
 
 export async function login(req: PlatformAuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -243,6 +244,22 @@ export async function updateContactRequestStatus(
   try {
     const request = await contactRequestService.updateStatus(req.params.id, req.body);
     res.json(request);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─── Balance estadístico ─────────────────────────────────────────────────────
+
+/** Pedidos y % de clientes activos que pidieron hoy/semana/mes, por cada distribuidora. */
+export async function getStatsBalance(
+  _req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const balance = await statsService.getPlatformOrderBalance();
+    res.json(balance);
   } catch (err) {
     next(err);
   }

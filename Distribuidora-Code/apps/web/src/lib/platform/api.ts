@@ -57,6 +57,37 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
   return res.json();
 }
 
+export interface PeriodStats {
+  orders: number;
+  revenue: number;
+  clientsWithOrders: number;
+  totalActiveClients: number;
+  pctClientsWithOrders: number;
+}
+
+export interface DistributorBalanceRow {
+  distributorId: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  planName: string | null;
+  totalActiveClients: number;
+  day: PeriodStats;
+  week: PeriodStats;
+  month: PeriodStats;
+}
+
+export interface PlatformOrderBalance {
+  totals: { day: PeriodStats; week: PeriodStats; month: PeriodStats };
+  totalDistributors: number;
+  distributors: DistributorBalanceRow[];
+}
+
+/** Balance estadístico: pedidos y % de clientes activos que pidieron hoy/semana/mes, por distribuidora. */
+export async function getPlatformOrderBalance(): Promise<PlatformOrderBalance> {
+  return apiRequest<PlatformOrderBalance>('/stats/balance', { method: 'GET' });
+}
+
 export const api = {
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
   post: <T>(endpoint: string, body?: unknown) =>

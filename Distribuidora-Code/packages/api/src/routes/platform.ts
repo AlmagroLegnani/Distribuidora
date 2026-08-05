@@ -127,6 +127,10 @@ router.put(
   platformController.updatePlan
 );
 
+// GET /api/platform/stats/balance — pedidos y % de clientes activos que
+// pidieron hoy/semana/mes, para cada una de nuestras distribuidoras
+router.get('/stats/balance', platformAuthMiddleware, platformController.getStatsBalance);
+
 // GET /api/platform/contact-requests
 router.get('/contact-requests', platformAuthMiddleware, platformController.listContactRequests);
 

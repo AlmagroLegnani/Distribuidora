@@ -157,3 +157,99 @@ export async function getClientOrderBalance(distributorId: string): Promise<Clie
     };
   });
 }
+
+export interface DistributorBalanceRow {
+  distributorId: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  planName: string | null;
+  totalActiveClients: number;
+  day: PeriodStats;
+  week: PeriodStats;
+  month: PeriodStats;
+}
+
+/**
+ * Balance estadístico a nivel plataforma, para el panel de superadmin: por
+ * cada distribuidora, cuántos pedidos recibió y qué % de sus clientes
+ * activos pidieron hoy / esta semana / este mes — el mismo criterio que
+ * usa cada distribuidora en su propio Balance Estadístico (ver
+ * getOrderBalance), pero acá para las ~N distribuidoras de una sola vez, así
+ * se puede decidir a qué plan de cobro corresponde cada una.
+ */
+export async function getPlatformOrderBalance(): Promise<{
+  totals: { day: PeriodStats; week: PeriodStats; month: PeriodStats };
+  totalDistributors: number;
+  distributors: DistributorBalanceRow[];
+}> {
+  const dayStart = startOfToday();
+  const weekStart = startOfWeek();
+  const monthStart = startOfMonth();
+
+  const [distributors, activeClientCounts, ordersSinceMonthStart] = await Promise.all([
+    prisma.distributor.findMany({
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        active: true,
+        subscription: { select: { plan: { select: { name: true } } } },
+      },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.client.groupBy({
+      by: ['distributorId'],
+      where: { active: true },
+      _count: { distributorId: true },
+    }),
+    prisma.order.findMany({
+      where: { status: { not: 'CANCELLED' }, createdAt: { gte: monthStart } },
+      select: { distributorId: true, clientId: true, total: true, createdAt: true },
+    }),
+  ]);
+
+  const activeClientsByDistributor = new Map(
+    activeClientCounts.map((c) => [c.distributorId, c._count.distributorId])
+  );
+
+  const distributorRows: DistributorBalanceRow[] = distributors.map((d) => {
+    const totalActiveClients = activeClientsByDistributor.get(d.id) ?? 0;
+    const ordersForThis = ordersSinceMonthStart.filter((o) => o.distributorId === d.id);
+    return {
+      distributorId: d.id,
+      name: d.name,
+      slug: d.slug,
+      active: d.active,
+      planName: d.subscription?.plan.name ?? null,
+      totalActiveClients,
+      day: summarize(
+        ordersForThis.filter((o) => o.createdAt >= dayStart),
+        totalActiveClients
+      ),
+      week: summarize(
+        ordersForThis.filter((o) => o.createdAt >= weekStart),
+        totalActiveClients
+      ),
+      month: summarize(ordersForThis, totalActiveClients),
+    };
+  });
+
+  const totalActiveClientsAll = distributorRows.reduce((sum, d) => sum + d.totalActiveClients, 0);
+
+  return {
+    totals: {
+      day: summarize(
+        ordersSinceMonthStart.filter((o) => o.createdAt >= dayStart),
+        totalActiveClientsAll
+      ),
+      week: summarize(
+        ordersSinceMonthStart.filter((o) => o.createdAt >= weekStart),
+        totalActiveClientsAll
+      ),
+      month: summarize(ordersSinceMonthStart, totalActiveClientsAll),
+    },
+    totalDistributors: distributors.length,
+    distributors: distributorRows,
+  };
+}
