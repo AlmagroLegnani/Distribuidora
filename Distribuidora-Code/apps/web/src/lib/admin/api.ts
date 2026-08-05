@@ -132,7 +132,7 @@ export async function uploadProductImage(file: File): Promise<{ url: string }> {
 
 export interface StockAlert {
   id: string;
-  type: 'LOW_STOCK' | 'PAYMENT_DUE' | 'REORDER_SUGGESTION';
+  type: 'LOW_STOCK' | 'PAYMENT_DUE' | 'REORDER_SUGGESTION' | 'CLIENT_COOLING';
   message: string | null;
   productId: string | null;
   productName: string | null;

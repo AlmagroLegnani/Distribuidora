@@ -327,6 +327,83 @@ export async function getFrequentProductIds(
   return grouped.map((g) => g.productId);
 }
 
+export interface RepeatOrderItem {
+  productId: string;
+  name: string;
+  code: string | null;
+  quantity: number;
+  unitPrice: number;
+  maxStock: number;
+  ivaType: IvaType;
+}
+
+export interface RepeatOrderSkipped {
+  name: string;
+  reason: string;
+}
+
+/**
+ * Arma el "carrito" de un pedido pasado del cliente para el botón "Volver a
+ * pedir" — no crea ningún pedido, solo devuelve los items validados contra
+ * el catálogo de HOY (precio y descuento vigentes, stock disponible), listos
+ * para que el frontend los cargue al carrito y el cliente ajuste cantidades
+ * antes de confirmar. Un producto dado de baja o sin stock se saltea (se
+ * informa en `skipped`) en vez de bloquear todo el resto del pedido.
+ */
+export async function getRepeatItems(
+  distributorId: string,
+  clientId: string,
+  orderId: string
+): Promise<{ items: RepeatOrderItem[]; skipped: RepeatOrderSkipped[] }> {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, distributorId, clientId },
+    include: { items: { select: { productId: true, quantity: true } } },
+  });
+  if (!order) throw new AppError(404, 'Pedido no encontrado');
+
+  const clientPrices = await prisma.clientPrice.findMany({
+    where: { distributorId, clientId },
+    select: { productId: true, discountPercent: true },
+  });
+  const discountByProductId = new Map(clientPrices.map((cp) => [cp.productId, cp.discountPercent]));
+
+  const items: RepeatOrderItem[] = [];
+  const skipped: RepeatOrderSkipped[] = [];
+
+  for (const orderItem of order.items) {
+    const product = await prisma.product.findFirst({
+      where: { id: orderItem.productId, distributorId },
+      select: { id: true, name: true, code: true, price: true, stock: true, active: true, ivaType: true },
+    });
+
+    if (!product || !product.active) {
+      skipped.push({ name: product?.name || 'Producto', reason: 'Ya no está disponible' });
+      continue;
+    }
+    if (product.stock <= 0) {
+      skipped.push({ name: product.name, reason: 'Sin stock por el momento' });
+      continue;
+    }
+
+    const discountPercent = discountByProductId.get(product.id);
+    const unitPrice =
+      discountPercent !== undefined ? applyDiscount(product.price, discountPercent) : product.price;
+    const quantity = Math.min(orderItem.quantity, product.stock);
+
+    items.push({
+      productId: product.id,
+      name: product.name,
+      code: product.code,
+      quantity,
+      unitPrice,
+      maxStock: product.stock,
+      ivaType: product.ivaType,
+    });
+  }
+
+  return { items, skipped };
+}
+
 export async function getDashboardStats(distributorId: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);

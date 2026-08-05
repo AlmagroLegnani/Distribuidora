@@ -4,49 +4,42 @@ import { AppError } from '../middleware/errorHandler';
 
 const PLATFORM_URL = process.env.PLATFORM_URL || 'http://localhost:3000';
 
-// Uruguay está en UTC-3 todo el año (no tiene horario de verano) — mismo
-// cálculo que reminderService.ts.
-const URUGUAY_OFFSET_HOURS = 3;
+// Si solo hay 1 pedido histórico de un producto todavía no se puede calcular
+// una cadencia real — se usa esta cadencia por defecto (mismo criterio que
+// la regla fija que había antes) hasta que haya un segundo pedido con el que
+// aprender el intervalo de verdad.
+const DEFAULT_CADENCE_DAYS = 7;
+// Piso para la cadencia aprendida: evita avisar todos los días para
+// productos que el cliente pide muy seguido (ej. todos los días).
+const MIN_CADENCE_DAYS = 3;
+// Avisamos un poco ANTES de que se cumpla el ciclo, no recién cuando ya se
+// pasó — más preventivo que "ya deberías haber pedido".
+const EARLY_WARNING_DAYS = 2;
 
-/**
- * Devuelve el inicio (lunes 00:00, hora Uruguay) de la semana calendario
- * actual y de la anterior, ambos expresados en UTC.
- */
-function getUruguayWeekBoundsUtc(): { lastWeekStart: Date; thisWeekStart: Date } {
-  const now = new Date();
-  const uruguayNow = new Date(now.getTime() - URUGUAY_OFFSET_HOURS * 60 * 60 * 1000);
-  const uruguayMidnightUtc = Date.UTC(
-    uruguayNow.getUTCFullYear(),
-    uruguayNow.getUTCMonth(),
-    uruguayNow.getUTCDate(),
-    URUGUAY_OFFSET_HOURS,
-    0,
-    0,
-    0
-  );
-  // getUTCDay(): domingo=0, lunes=1, ..., sábado=6 — lo convertimos a
-  // "días desde el lunes" (lunes=0 ... domingo=6) para hallar el lunes de esta semana.
-  const dayOfWeek = uruguayNow.getUTCDay();
-  const daysSinceMonday = (dayOfWeek + 6) % 7;
-  const thisWeekStart = new Date(uruguayMidnightUtc - daysSinceMonday * 24 * 60 * 60 * 1000);
-  const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
-  return { lastWeekStart, thisWeekStart };
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function daysBetween(a: Date, b: Date): number {
+  return Math.round((b.getTime() - a.getTime()) / MS_PER_DAY);
 }
 
 /**
- * Recorre los pedidos de cada cliente activo y arma una sugerencia de
- * recompra (StockAlert tipo REORDER_SUGGESTION) para cada producto que el
- * cliente pidió la semana calendario pasada (lunes a domingo) y todavía NO
- * volvió a pedir esta semana — apenas se detecta eso, salta el aviso, sin
- * esperar a que se repita el patrón varias semanas seguidas.
+ * Recorre el historial completo de cada cliente activo y, por cada producto
+ * que le compró alguna vez, aprende cada cuántos días suele repetirlo
+ * (promedio de los intervalos entre pedidos consecutivos de ese producto).
+ * Si todavía no pasó suficiente tiempo desde el último pedido como para
+ * llegar a ese ciclo (menos el margen preventivo de 2 días), no avisa nada.
  *
- * No duplica: si ya existe una sugerencia para ese mismo cliente+producto
- * creada esta semana, no genera otra (evita repetir el aviso todos los días
- * mientras corre el scheduler diario y el cliente sigue sin volver a pedirlo).
+ * Con un solo pedido histórico no hay cadencia para aprender — se usa un
+ * valor por defecto de 7 días hasta que haya un segundo pedido.
+ *
+ * No duplica: solo genera una sugerencia nueva si no existe ya una para ese
+ * mismo cliente+producto creada desde su último pedido de ese producto (así
+ * no se repite todos los días mientras corre el scheduler y el cliente
+ * sigue sin volver a pedirlo — vuelve a poder avisar recién cuando pida de
+ * nuevo y se enfríe otra vez).
  */
 export async function detectReorderSuggestions(): Promise<{ created: number }> {
   const now = new Date();
-  const { lastWeekStart, thisWeekStart } = getUruguayWeekBoundsUtc();
 
   const clients = await prisma.client.findMany({
     where: { active: true, distributor: { active: true } },
@@ -55,7 +48,7 @@ export async function detectReorderSuggestions(): Promise<{ created: number }> {
       name: true,
       distributorId: true,
       orders: {
-        where: { createdAt: { gte: lastWeekStart, lt: now } },
+        orderBy: { createdAt: 'asc' },
         select: {
           createdAt: true,
           items: {
@@ -72,40 +65,55 @@ export async function detectReorderSuggestions(): Promise<{ created: number }> {
   let created = 0;
 
   for (const client of clients) {
-    const byProduct = new Map<
-      string,
-      { orderedLastWeek: boolean; orderedThisWeek: boolean; name: string; active: boolean }
-    >();
+    const datesByProduct = new Map<string, Date[]>();
+    const infoByProduct = new Map<string, { name: string; active: boolean }>();
 
     for (const order of client.orders) {
-      const isThisWeek = order.createdAt >= thisWeekStart;
       for (const item of order.items) {
-        const entry = byProduct.get(item.productId) ?? {
-          orderedLastWeek: false,
-          orderedThisWeek: false,
-          name: item.product.name,
-          active: item.product.active,
-        };
-        if (isThisWeek) entry.orderedThisWeek = true;
-        else entry.orderedLastWeek = true;
-        byProduct.set(item.productId, entry);
+        const dates = datesByProduct.get(item.productId) ?? [];
+        dates.push(order.createdAt);
+        datesByProduct.set(item.productId, dates);
+        if (!infoByProduct.has(item.productId)) {
+          infoByProduct.set(item.productId, { name: item.product.name, active: item.product.active });
+        }
       }
     }
 
-    for (const [productId, info] of byProduct) {
-      if (!info.orderedLastWeek || info.orderedThisWeek) continue; // solo si lo pidió la semana pasada y no esta
+    for (const [productId, dates] of datesByProduct) {
+      const info = infoByProduct.get(productId)!;
       if (!info.active) continue; // producto dado de baja, no tiene sentido sugerirlo
+
+      const lastOrderAt = dates[dates.length - 1];
+      const daysSinceLast = daysBetween(lastOrderAt, now);
+
+      let cadenceDays: number;
+      if (dates.length >= 2) {
+        const intervals = dates.slice(1).map((d, i) => daysBetween(dates[i], d));
+        const avg = intervals.reduce((sum, d) => sum + d, 0) / intervals.length;
+        cadenceDays = Math.max(Math.round(avg), MIN_CADENCE_DAYS);
+      } else {
+        cadenceDays = DEFAULT_CADENCE_DAYS;
+      }
+
+      const triggerAt = Math.max(cadenceDays - EARLY_WARNING_DAYS, 1);
+      if (daysSinceLast < triggerAt) continue; // todavía no le toca
 
       const existing = await prisma.stockAlert.findFirst({
         where: {
           type: 'REORDER_SUGGESTION',
           clientId: client.id,
           productId,
-          createdAt: { gte: thisWeekStart },
+          createdAt: { gte: lastOrderAt },
         },
         select: { id: true },
       });
       if (existing) continue;
+
+      const displayName = client.name || 'Este cliente';
+      const message =
+        dates.length >= 2
+          ? `${displayName} normalmente pide ${info.name} cada ${cadenceDays} días, y ya pasaron ${daysSinceLast}. ¿Le mandamos un recordatorio por si lo necesita?`
+          : `${displayName} pidió ${info.name} hace ${daysSinceLast} días y todavía no lo volvió a pedir. ¿Le mandamos un recordatorio por si lo necesita?`;
 
       await prisma.stockAlert.create({
         data: {
@@ -115,13 +123,16 @@ export async function detectReorderSuggestions(): Promise<{ created: number }> {
           clientName: client.name || 'Cliente',
           productId,
           productName: info.name,
-          message: `${client.name || 'Este cliente'} pidió ${info.name} la semana pasada y todavía no lo volvió a pedir esta semana. ¿Le mandamos un recordatorio por si lo necesita?`,
+          message,
         },
       });
       created++;
     }
   }
 
+  console.log(
+    `[${new Date().toISOString()}] [reorder-suggestion] ${created} sugerencia(s) de recompra generada(s).`
+  );
   return { created };
 }
 

@@ -7,6 +7,9 @@ import routes from './routes';
 import { cleanupOldSentEmails } from './services/emailCleanupService';
 import { sendDailyOrderReminders } from './services/reminderService';
 import { detectReorderSuggestions } from './services/reorderSuggestionService';
+import { detectCoolingClients } from './services/clientCoolingService';
+import { generateDueRecurringOrders } from './services/recurringOrderService';
+import { sendMonthlySummaries } from './services/monthlySummaryService';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -104,6 +107,59 @@ setInterval(() => {
   lastReorderSuggestionRunDate = todayKey;
   detectReorderSuggestions().catch((err) =>
     console.error(`[${new Date().toISOString()}] [reorder-suggestion] Error inesperado:`, err)
+  );
+}, REMINDER_CHECK_INTERVAL_MS);
+
+// Detección de "clientes que se enfriaron" (venían pidiendo seguido y hace
+// 14+ días que no hacen nada): corre una vez al día, misma hora que las
+// sugerencias de recompra de arriba (8am Uruguay = 11:00 UTC) — el aviso le
+// llega a la DISTRIBUIDORA, no al cliente, para que lo llame.
+let lastClientCoolingRunDate: string | null = null;
+setInterval(() => {
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10);
+  if (now.getUTCHours() !== REORDER_SUGGESTION_HOUR_UTC) return;
+  if (lastClientCoolingRunDate === todayKey) return;
+
+  lastClientCoolingRunDate = todayKey;
+  detectCoolingClients().catch((err) =>
+    console.error(`[${new Date().toISOString()}] [client-cooling] Error inesperado:`, err)
+  );
+}, REMINDER_CHECK_INTERVAL_MS);
+
+// Generación automática de pedidos recurrentes ("pedime esto todos los
+// martes"): corre temprano, 6am Uruguay = 9:00 UTC, antes que el resto de
+// los jobs del día, para que el pedido ya esté generado cuando la
+// distribuidora y el cliente arrancan su día.
+const RECURRING_ORDERS_HOUR_UTC = 9; // 6:00 Uruguay
+let lastRecurringOrdersRunDate: string | null = null;
+setInterval(() => {
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10);
+  if (now.getUTCHours() !== RECURRING_ORDERS_HOUR_UTC) return;
+  if (lastRecurringOrdersRunDate === todayKey) return;
+
+  lastRecurringOrdersRunDate = todayKey;
+  generateDueRecurringOrders().catch((err) =>
+    console.error(`[${new Date().toISOString()}] [recurring-orders] Error inesperado:`, err)
+  );
+}, REMINDER_CHECK_INTERVAL_MS);
+
+// Resumen mensual ("esto pediste este mes, esto gastaste"): corre el día 1
+// de cada mes, 10am Uruguay = 13:00 UTC. Usa una clave "YYYY-MM" en vez de
+// la fecha completa para no reintentar el resto del mes una vez enviado.
+const MONTHLY_SUMMARY_HOUR_UTC = 13; // 10:00 Uruguay
+let lastMonthlySummaryRunMonth: string | null = null;
+setInterval(() => {
+  const now = new Date();
+  const monthKey = now.toISOString().slice(0, 7); // "YYYY-MM"
+  if (now.getUTCDate() !== 1) return;
+  if (now.getUTCHours() !== MONTHLY_SUMMARY_HOUR_UTC) return;
+  if (lastMonthlySummaryRunMonth === monthKey) return;
+
+  lastMonthlySummaryRunMonth = monthKey;
+  sendMonthlySummaries().catch((err) =>
+    console.error(`[${new Date().toISOString()}] [monthly-summary] Error inesperado:`, err)
   );
 }, REMINDER_CHECK_INTERVAL_MS);
 

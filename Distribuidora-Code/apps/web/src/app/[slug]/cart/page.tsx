@@ -5,9 +5,18 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency, validateDocument, formatDocument } from '@/lib/cart';
-import { createOrder } from '@/lib/api';
+import {
+  createOrder,
+  createRecurringOrder,
+  getRecurringOrders,
+  setRecurringOrderActive,
+  deleteRecurringOrder,
+  type RecurringOrder,
+} from '@/lib/api';
 import { loadAccess } from '@/lib/access';
 import { IVA_LABELS } from '@/lib/iva';
+
+const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 export default function CartPage() {
   const params = useParams();
@@ -22,6 +31,13 @@ export default function CartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  const [recurringOrders, setRecurringOrders] = useState<RecurringOrder[]>([]);
+  const [showRecurringForm, setShowRecurringForm] = useState(false);
+  const [recurringDay, setRecurringDay] = useState(1); // lunes por defecto
+  const [savingRecurring, setSavingRecurring] = useState(false);
+  const [recurringError, setRecurringError] = useState('');
+  const [recurringBusyId, setRecurringBusyId] = useState<string | null>(null);
+
   useEffect(() => {
     const access = loadAccess(slug);
     if (!access?.documento) return;
@@ -29,6 +45,56 @@ export default function CartPage() {
     setDocumento(access.documento);
     setDocumentoLocked(true);
   }, [slug]);
+
+  useEffect(() => {
+    getRecurringOrders(slug)
+      .then(setRecurringOrders)
+      .catch(() => null);
+  }, [slug]);
+
+  async function handleSaveRecurring() {
+    if (items.length === 0) return;
+    setSavingRecurring(true);
+    setRecurringError('');
+    try {
+      const created = await createRecurringOrder(
+        slug,
+        recurringDay,
+        items.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+      );
+      setRecurringOrders((prev) => [created, ...prev]);
+      setShowRecurringForm(false);
+    } catch (err) {
+      setRecurringError(err instanceof Error ? err.message : 'No se pudo guardar el pedido recurrente.');
+    } finally {
+      setSavingRecurring(false);
+    }
+  }
+
+  async function handleToggleRecurring(id: string, active: boolean) {
+    setRecurringBusyId(id);
+    try {
+      const updated = await setRecurringOrderActive(slug, id, active);
+      setRecurringOrders((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo actualizar.');
+    } finally {
+      setRecurringBusyId(null);
+    }
+  }
+
+  async function handleDeleteRecurring(id: string) {
+    if (!confirm('¿Eliminar este pedido recurrente?')) return;
+    setRecurringBusyId(id);
+    try {
+      await deleteRecurringOrder(slug, id);
+      setRecurringOrders((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo eliminar.');
+    } finally {
+      setRecurringBusyId(null);
+    }
+  }
 
   function handleDocumentoChange(value: string) {
     setDocumento(value);
@@ -270,6 +336,100 @@ export default function CartPage() {
             </div>
           </form>
         </div>
+      </div>
+
+      {/* Pedidos recurrentes — "pedime esto todos los martes" */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="font-semibold text-gray-900">Pedidos recurrentes</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Guardá el carrito de hoy para que se pida solo, todas las semanas, el mismo día.
+            </p>
+          </div>
+          {!showRecurringForm && (
+            <button
+              onClick={() => setShowRecurringForm(true)}
+              className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              + Repetir este pedido todas las semanas
+            </button>
+          )}
+        </div>
+
+        {showRecurringForm && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-xl space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-sm text-gray-700">Repetir todos los</label>
+              <select
+                value={recurringDay}
+                onChange={(e) => setRecurringDay(Number(e.target.value))}
+                className="input py-1.5 text-sm w-auto"
+              >
+                {DAY_NAMES.map((name, idx) => (
+                  <option key={idx} value={idx}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500">con los {items.length} producto(s) de hoy</span>
+            </div>
+            {recurringError && <p className="text-xs text-red-600">{recurringError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveRecurring}
+                disabled={savingRecurring}
+                className="btn-primary py-1.5 px-4 text-sm disabled:opacity-50"
+              >
+                {savingRecurring ? 'Guardando...' : 'Guardar'}
+              </button>
+              <button
+                onClick={() => setShowRecurringForm(false)}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {recurringOrders.length > 0 && (
+          <ul className="mt-4 divide-y divide-gray-100 border-t border-gray-100">
+            {recurringOrders.map((r) => (
+              <li key={r.id} className="py-3 flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    Todos los {DAY_NAMES[r.dayOfWeek].toLowerCase()}
+                    {!r.active && (
+                      <span className="ml-2 text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                        Pausado
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {r.items.map((i) => `${i.product.name} (x${i.quantity})`).join(', ')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 text-xs font-medium">
+                  <button
+                    onClick={() => handleToggleRecurring(r.id, !r.active)}
+                    disabled={recurringBusyId === r.id}
+                    className="text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                  >
+                    {r.active ? 'Pausar' : 'Reactivar'}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRecurring(r.id)}
+                    disabled={recurringBusyId === r.id}
+                    className="text-red-600 hover:text-red-700 disabled:opacity-50"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

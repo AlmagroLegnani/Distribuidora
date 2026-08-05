@@ -88,7 +88,8 @@ export default function NotificationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Avisos de stock bajo, vencimiento de pago y sugerencias de recompra de tus clientes.
+            Avisos de stock bajo, vencimiento de pago, sugerencias de recompra y clientes que dejaron
+            de pedir.
           </p>
         </div>
         {unreadCount > 0 && (
@@ -108,8 +109,9 @@ export default function NotificationsPage() {
         ) : alerts.length === 0 ? (
           <div className="p-6 text-center text-gray-500">
             No hay notificaciones todavía. Te avisaremos acá cuando algún producto tenga menos de 30
-            unidades de stock, cuando se acerque el vencimiento de tu pago, o cuando detectemos que un
-            cliente viene pidiendo el mismo producto seguido.
+            unidades de stock, cuando se acerque el vencimiento de tu pago, cuando detectemos que un
+            cliente viene pidiendo el mismo producto seguido, o cuando un cliente habitual deje de
+            pedir por un tiempo.
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -138,6 +140,11 @@ export default function NotificationsPage() {
                     ) : alert.type === 'REORDER_SUGGESTION' ? (
                       <>
                         <span className="mr-1">🔄</span>
+                        {alert.message}
+                      </>
+                    ) : alert.type === 'CLIENT_COOLING' ? (
+                      <>
+                        <span className="mr-1">🥶</span>
                         {alert.message}
                       </>
                     ) : (

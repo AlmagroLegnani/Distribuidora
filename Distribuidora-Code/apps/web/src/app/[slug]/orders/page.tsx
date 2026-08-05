@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getClientOrders, type ClientOrder } from '@/lib/api';
+import { getClientOrders, getRepeatOrderItems, type ClientOrder } from '@/lib/api';
 import { loadAccess } from '@/lib/access';
 import { formatCurrency } from '@/lib/cart';
+import { useCart } from '@/context/CartContext';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendiente',
@@ -47,12 +48,49 @@ function formatEstimatedDelivery(order: ClientOrder): string | null {
 
 export default function MyOrdersPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
+  const { addItem } = useCart();
 
   const [orders, setOrders] = useState<ClientOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [repeatingId, setRepeatingId] = useState<string | null>(null);
+
+  async function handleRepeat(orderId: string) {
+    setRepeatingId(orderId);
+    try {
+      const result = await getRepeatOrderItems(slug, orderId);
+      if (result.items.length === 0) {
+        alert('Ninguno de los productos de este pedido está disponible ahora.');
+        return;
+      }
+      result.items.forEach((item) => {
+        addItem({
+          productId: item.productId,
+          name: item.name,
+          code: item.code,
+          price: item.unitPrice,
+          ivaType: item.ivaType,
+          quantity: item.quantity,
+          maxStock: item.maxStock,
+        });
+      });
+      if (result.skipped.length > 0) {
+        alert(
+          `Agregamos lo que sigue disponible al carrito. No se pudo repetir: ${result.skipped
+            .map((s) => `${s.name} (${s.reason})`)
+            .join(', ')}.`
+        );
+      }
+      router.push(`/${slug}/cart`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo repetir el pedido.');
+    } finally {
+      setRepeatingId(null);
+    }
+  }
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -218,6 +256,13 @@ export default function MyOrdersPage() {
                         ))}
                       </tbody>
                     </table>
+                    <button
+                      onClick={() => handleRepeat(order.id)}
+                      disabled={repeatingId === order.id}
+                      className="w-full py-2 text-sm font-medium rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {repeatingId === order.id ? 'Agregando al carrito...' : '🔁 Volver a pedir'}
+                    </button>
                   </div>
                 )}
               </div>

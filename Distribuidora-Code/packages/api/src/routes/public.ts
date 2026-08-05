@@ -9,6 +9,8 @@ import {
   pushSubscribeSchema,
   pushUnsubscribeSchema,
   stockWaitlistSchema,
+  createRecurringOrderSchema,
+  setRecurringOrderActiveSchema,
 } from '../validations/schemas';
 
 const router = Router();
@@ -54,6 +56,32 @@ router.post(
   validate(createPublicOrderSchema),
   publicController.createPublicOrder
 );
+
+// GET /api/public/:slug/orders/:id/repeat  — "Volver a pedir": arma el
+// carrito a partir de un pedido pasado (requiere documento + code)
+router.get('/:slug/orders/:id/repeat', authLimiter, publicController.getRepeatOrderItems);
+
+// POST /api/public/:slug/recurring-orders  — guardar el carrito como pedido recurrente
+router.post(
+  '/:slug/recurring-orders',
+  publicWriteLimiter,
+  validate(createRecurringOrderSchema),
+  publicController.createRecurringOrder
+);
+
+// GET /api/public/:slug/recurring-orders  — listar las plantillas del cliente
+router.get('/:slug/recurring-orders', authLimiter, publicController.listRecurringOrders);
+
+// PATCH /api/public/:slug/recurring-orders/:id  — pausar/reactivar una plantilla
+router.patch(
+  '/:slug/recurring-orders/:id',
+  publicWriteLimiter,
+  validate(setRecurringOrderActiveSchema),
+  publicController.setRecurringOrderActive
+);
+
+// DELETE /api/public/:slug/recurring-orders/:id  — eliminar una plantilla
+router.delete('/:slug/recurring-orders/:id', publicWriteLimiter, publicController.deleteRecurringOrder);
 
 // POST /api/public/contact-requests  — botón "Contactate con nosotros" (home)
 router.post(

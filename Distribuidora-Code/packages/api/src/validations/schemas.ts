@@ -281,6 +281,27 @@ export const stockWaitlistSchema = z.object({
   productId: z.string().cuid('Invalid product ID'),
 });
 
+// ─── Pedidos recurrentes ("pedime esto todos los martes") ───────────────────
+export const createRecurringOrderSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
+  dayOfWeek: z.number().int().min(0).max(6),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().cuid('Invalid product ID'),
+        quantity: z.number().int().positive(),
+      })
+    )
+    .min(1, 'El pedido recurrente necesita al menos un producto'),
+});
+
+export const setRecurringOrderActiveSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
+  active: z.boolean(),
+});
+
 // ─── Settings ─────────────────────────────────────────────────────────────
 export const updateSettingsSchema = z.object({
   notificationEmail: z.string().email().optional().nullable(),
@@ -358,6 +379,8 @@ export type VerifyAccessCodeInput = z.infer<typeof verifyAccessCodeSchema>;
 export type PushSubscribeInput = z.infer<typeof pushSubscribeSchema>;
 export type PushUnsubscribeInput = z.infer<typeof pushUnsubscribeSchema>;
 export type StockWaitlistInput = z.infer<typeof stockWaitlistSchema>;
+export type CreateRecurringOrderInput = z.infer<typeof createRecurringOrderSchema>;
+export type SetRecurringOrderActiveInput = z.infer<typeof setRecurringOrderActiveSchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;

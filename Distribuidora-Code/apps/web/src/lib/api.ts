@@ -258,3 +258,83 @@ export async function createOrder(
     body: JSON.stringify(payload),
   });
 }
+
+export interface RepeatOrderItem {
+  productId: string;
+  name: string;
+  code: string | null;
+  quantity: number;
+  unitPrice: number;
+  maxStock: number;
+  ivaType: IvaType;
+}
+
+export interface RepeatOrderResult {
+  items: RepeatOrderItem[];
+  skipped: Array<{ name: string; reason: string }>;
+}
+
+/** Botón "Volver a pedir": trae los items de un pedido pasado, validados contra el catálogo de hoy. */
+export async function getRepeatOrderItems(slug: string, orderId: string): Promise<RepeatOrderResult> {
+  const access = loadAccess(slug);
+  if (!access) throw new Error('Ingresá tu código de acceso para poder repetir un pedido.');
+  const params = new URLSearchParams({ documento: access.documento, code: access.code });
+  return apiFetch<RepeatOrderResult>(`/public/${slug}/orders/${orderId}/repeat?${params.toString()}`);
+}
+
+export interface RecurringOrder {
+  id: string;
+  dayOfWeek: number;
+  active: boolean;
+  lastGeneratedAt: string | null;
+  createdAt: string;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    product: { name: string; code: string | null };
+  }>;
+}
+
+/** Guarda el carrito actual como plantilla de pedido recurrente ("pedime esto todos los martes"). */
+export async function createRecurringOrder(
+  slug: string,
+  dayOfWeek: number,
+  items: Array<{ productId: string; quantity: number }>
+): Promise<RecurringOrder> {
+  const access = loadAccess(slug);
+  if (!access) throw new Error('Ingresá tu código de acceso para poder guardar un pedido recurrente.');
+  return apiFetch<RecurringOrder>(`/public/${slug}/recurring-orders`, {
+    method: 'POST',
+    body: JSON.stringify({ documento: access.documento, code: access.code, dayOfWeek, items }),
+  });
+}
+
+/** Plantillas de pedido recurrente del cliente. */
+export async function getRecurringOrders(slug: string): Promise<RecurringOrder[]> {
+  const access = loadAccess(slug);
+  if (!access) return [];
+  const params = new URLSearchParams({ documento: access.documento, code: access.code });
+  return apiFetch<RecurringOrder[]>(`/public/${slug}/recurring-orders?${params.toString()}`);
+}
+
+/** Pausa/reactiva una plantilla de pedido recurrente. */
+export async function setRecurringOrderActive(
+  slug: string,
+  id: string,
+  active: boolean
+): Promise<RecurringOrder> {
+  const access = loadAccess(slug);
+  if (!access) throw new Error('Ingresá tu código de acceso.');
+  return apiFetch<RecurringOrder>(`/public/${slug}/recurring-orders/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ documento: access.documento, code: access.code, active }),
+  });
+}
+
+/** Elimina una plantilla de pedido recurrente. */
+export async function deleteRecurringOrder(slug: string, id: string): Promise<void> {
+  const access = loadAccess(slug);
+  if (!access) throw new Error('Ingresá tu código de acceso.');
+  const params = new URLSearchParams({ documento: access.documento, code: access.code });
+  await apiFetch(`/public/${slug}/recurring-orders/${id}?${params.toString()}`, { method: 'DELETE' });
+}

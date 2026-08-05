@@ -6,6 +6,7 @@ import * as clientPriceService from '../services/clientPriceService';
 import * as contactRequestService from '../services/contactRequestService';
 import * as pushSubscriptionService from '../services/pushSubscriptionService';
 import * as stockWaitlistService from '../services/stockWaitlistService';
+import * as recurringOrderService from '../services/recurringOrderService';
 import { sendOrderNotifications } from '../services/notificationService';
 import { AppError } from '../middleware/errorHandler';
 
@@ -462,6 +463,155 @@ export async function unsubscribePush(req: Request, res: Response, next: NextFun
     await pushSubscriptionService.removeSubscription(client.id, endpoint);
 
     res.json({ subscribed: false });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Botón "Volver a pedir": arma el carrito a partir de un pedido pasado del cliente. */
+export async function getRepeatOrderItems(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code } = req.query as Record<string, string | undefined>;
+    if (!documento || !code) {
+      throw new AppError(400, 'documento and code are required');
+    }
+    const client = await clientService.verifyClientAccessCode(distributor.id, documento, code);
+    const result = await orderService.getRepeatItems(distributor.id, client.id, req.params.id);
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Cliente guarda el carrito actual como plantilla de pedido recurrente. */
+export async function createRecurringOrder(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code, dayOfWeek, items } = req.body as {
+      documento: string;
+      code: string;
+      dayOfWeek: number;
+      items: { productId: string; quantity: number }[];
+    };
+    const client = await clientService.verifyClientAccessCode(distributor.id, documento, code);
+    const recurringOrder = await recurringOrderService.createRecurringOrder(
+      distributor.id,
+      client.id,
+      dayOfWeek,
+      items
+    );
+
+    res.status(201).json(recurringOrder);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Plantillas de pedido recurrente del cliente. */
+export async function listRecurringOrders(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code } = req.query as Record<string, string | undefined>;
+    if (!documento || !code) {
+      throw new AppError(400, 'documento and code are required');
+    }
+    const client = await clientService.verifyClientAccessCode(distributor.id, documento, code);
+    const recurringOrders = await recurringOrderService.listRecurringOrders(distributor.id, client.id);
+
+    res.json(recurringOrders);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Pausa/reactiva una plantilla de pedido recurrente. */
+export async function setRecurringOrderActive(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code, active } = req.body as { documento: string; code: string; active: boolean };
+    const client = await clientService.verifyClientAccessCode(distributor.id, documento, code);
+    const recurringOrder = await recurringOrderService.setRecurringOrderActive(
+      distributor.id,
+      client.id,
+      req.params.id,
+      active
+    );
+
+    res.json(recurringOrder);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Elimina una plantilla de pedido recurrente. */
+export async function deleteRecurringOrder(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code } = req.query as Record<string, string | undefined>;
+    if (!documento || !code) {
+      throw new AppError(400, 'documento and code are required');
+    }
+    const client = await clientService.verifyClientAccessCode(distributor.id, documento, code);
+    await recurringOrderService.deleteRecurringOrder(distributor.id, client.id, req.params.id);
+
+    res.json({ deleted: true });
   } catch (err) {
     next(err);
   }

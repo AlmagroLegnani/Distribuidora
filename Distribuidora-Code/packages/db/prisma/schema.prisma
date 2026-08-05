@@ -39,6 +39,7 @@ model Distributor {
   impersonations ImpersonationLog[]
   pushSubscriptions PushSubscription[]
   stockWaitlist StockWaitlist[]
+  recurringOrders RecurringOrder[]
 }
 
 // Administrador de la plataforma (dueño del SaaS, no un distribuidor)
@@ -186,6 +187,7 @@ model Product {
   stockAlerts   StockAlert[]
   clientPrices  ClientPrice[]
   stockWaitlist StockWaitlist[]
+  recurringOrderItems RecurringOrderItem[]
 
   @@unique([distributorId, code])
 }
@@ -200,7 +202,7 @@ model StockAlert {
   id            String      @id @default(cuid())
   distributorId String
   distributor   Distributor @relation(fields: [distributorId], references: [id])
-  type          String      @default("LOW_STOCK") // LOW_STOCK | PAYMENT_DUE | REORDER_SUGGESTION
+  type          String      @default("LOW_STOCK") // LOW_STOCK | PAYMENT_DUE | REORDER_SUGGESTION | CLIENT_COOLING
   message       String? // texto ya armado para tipos que no son de stock (ej: aviso de vencimiento o sugerencia de recompra)
   productId     String?
   product       Product?    @relation(fields: [productId], references: [id])
@@ -243,6 +245,7 @@ model Client {
   pushSubscriptions PushSubscription[]
   stockAlerts       StockAlert[]
   stockWaitlist     StockWaitlist[]
+  recurringOrders   RecurringOrder[]
 
   // Al menos uno de rut/cedula debe estar presente (ver migración: CHECK constraint).
   // Nulos no chocan entre sí en Postgres, por lo que ambos unique constraints conviven.
@@ -315,6 +318,44 @@ model StockWaitlist {
 
   @@unique([clientId, productId])
   @@index([distributorId, productId])
+}
+
+// Plantilla de "pedime esto todos los martes": el cliente arma un pedido tipo
+// (productos + cantidades) desde su carrito y elige un día de la semana. Un
+// job diario (ver recurringOrderService.generateDueRecurringOrders) revisa
+// qué plantillas corresponden al día de hoy y genera el pedido solo — si
+// algún producto ya no tiene stock suficiente, se saltea ESE ítem (no se
+// cancela el pedido entero) y se le avisa igual al cliente qué faltó.
+model RecurringOrder {
+  id            String      @id @default(cuid())
+  distributorId String
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id])
+  // 0 = domingo .. 6 = sábado (igual que Date.getDay() en JS).
+  dayOfWeek     Int
+  active        Boolean     @default(true)
+  // Última fecha (solo día, sin hora) en que se generó un pedido a partir de
+  // esta plantilla — evita generar dos veces el mismo día si el job corre
+  // más de una vez dentro de la ventana.
+  lastGeneratedAt DateTime? @db.Date
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  items RecurringOrderItem[]
+
+  @@index([distributorId, dayOfWeek, active])
+}
+
+model RecurringOrderItem {
+  id               String         @id @default(cuid())
+  recurringOrderId String
+  recurringOrder   RecurringOrder @relation(fields: [recurringOrderId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product        @relation(fields: [productId], references: [id])
+  quantity         Int
+
+  @@index([recurringOrderId])
 }
 
 // Registro de cada mail enviado (Message-ID + fecha), usado por el job de
