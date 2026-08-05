@@ -174,6 +174,42 @@ export async function sendReminder(id: string): Promise<{ sent: boolean; reason?
   return apiRequest(`/notifications/${id}/send-reminder`, { method: 'POST' });
 }
 
+export interface PeriodStats {
+  orders: number;
+  revenue: number;
+  clientsWithOrders: number;
+  totalActiveClients: number;
+  pctClientsWithOrders: number;
+}
+
+export interface OrderBalance {
+  totalActiveClients: number;
+  allTime: { orders: number; revenue: number };
+  day: PeriodStats;
+  week: PeriodStats;
+  month: PeriodStats;
+}
+
+export interface ClientOrderBalance {
+  clientId: string;
+  name: string;
+  ordersToday: number;
+  ordersThisWeek: number;
+  ordersThisMonth: number;
+  ordersTotal: number;
+  lastOrderAt: string | null;
+}
+
+/** Balance estadístico: pedidos y % de clientes activos que pidieron hoy/semana/mes. */
+export async function getOrderBalance(): Promise<OrderBalance> {
+  return apiRequest<OrderBalance>('/stats/balance', { method: 'GET' });
+}
+
+/** Desglose de pedidos por cliente (hoy/semana/mes/histórico), para la vista "Por cliente". */
+export async function getClientOrderBalance(): Promise<ClientOrderBalance[]> {
+  return apiRequest<ClientOrderBalance[]>('/stats/balance/clientes', { method: 'GET' });
+}
+
 export const api = {
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
   post: <T>(endpoint: string, body: unknown) =>

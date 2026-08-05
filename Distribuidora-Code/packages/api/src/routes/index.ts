@@ -7,6 +7,7 @@ import publicRoutes from './public';
 import platformRoutes from './platform';
 import webhookRoutes from './webhooks';
 import notificationRoutes from './notifications';
+import statsRoutes from './stats';
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use('/platform', platformRoutes);
 // flujo anterior.
 router.use('/webhooks', webhookRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/stats', statsRoutes);
 
 export default router;
