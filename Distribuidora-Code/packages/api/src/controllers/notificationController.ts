@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import * as stockAlertService from '../services/stockAlertService';
+import * as reorderSuggestionService from '../services/reorderSuggestionService';
 import { AuthRequest } from '../middleware/auth';
 import { parsePagination } from '../lib/pagination';
 
@@ -43,6 +44,18 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
   try {
     await stockAlertService.deleteStockAlert(req.distributorId!, req.params.id);
     res.json({ message: 'Notificación eliminada' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/notifications/:id/send-reminder — botón "Enviar recordatorio" de
+// una sugerencia de recompra (type = REORDER_SUGGESTION): manda un push al
+// cliente asociado.
+export async function sendReminder(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await reorderSuggestionService.sendReorderReminder(req.distributorId!, req.params.id);
+    res.json(result);
   } catch (err) {
     next(err);
   }

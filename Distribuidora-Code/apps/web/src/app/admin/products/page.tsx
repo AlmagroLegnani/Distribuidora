@@ -23,6 +23,10 @@ interface Product {
   category: string | null;
   imageUrl: string | null;
   active: boolean;
+  // Promoción "de fábrica" (ej: regalo, 2x1) — ver comentario en schema.prisma.
+  promotionActive: boolean;
+  promotionText: string | null;
+  promotionEndDate: string | null;
 }
 
 interface ProductFormData {
@@ -35,6 +39,9 @@ interface ProductFormData {
   stock: string;
   category: string;
   imageUrl: string;
+  promotionActive: boolean;
+  promotionText: string;
+  promotionEndDate: string; // yyyy-mm-dd, para <input type="date">
 }
 
 const EMPTY_FORM: ProductFormData = {
@@ -47,6 +54,9 @@ const EMPTY_FORM: ProductFormData = {
   stock: '',
   category: '',
   imageUrl: '',
+  promotionActive: false,
+  promotionText: '',
+  promotionEndDate: '',
 };
 
 export default function ProductsPage() {
@@ -107,6 +117,9 @@ export default function ProductsPage() {
       stock: String(product.stock),
       category: product.category || '',
       imageUrl: product.imageUrl || '',
+      promotionActive: product.promotionActive,
+      promotionText: product.promotionText || '',
+      promotionEndDate: product.promotionEndDate ? product.promotionEndDate.slice(0, 10) : '',
     });
     setFormError('');
     setImageError('');
@@ -132,6 +145,10 @@ export default function ProductsPage() {
 
   async function handleSave() {
     setFormError('');
+    if (form.promotionActive && !form.promotionText.trim()) {
+      setFormError('Escribí una descripción para la promoción antes de activarla.');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -144,6 +161,9 @@ export default function ProductsPage() {
         stock: parseInt(form.stock, 10),
         category: form.category || null,
         imageUrl: form.imageUrl || null,
+        promotionActive: form.promotionActive,
+        promotionText: form.promotionActive ? form.promotionText.trim() : null,
+        promotionEndDate: form.promotionActive && form.promotionEndDate ? form.promotionEndDate : null,
       };
 
       if (editProduct) {
@@ -261,7 +281,19 @@ export default function ProductsPage() {
                           <div className="w-10 h-10 rounded-md bg-gray-100 border border-gray-200" />
                         )}
                       </td>
-                      <td className="px-4 py-3 font-medium">{product.name}</td>
+                      <td className="px-4 py-3 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <span>{product.name}</span>
+                          {product.promotionActive && (
+                            <span
+                              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700"
+                              title={product.promotionText || ''}
+                            >
+                              Promo
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-600">{product.brand || '—'}</td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-500">
                         {product.code || '—'}
@@ -353,8 +385,8 @@ export default function ProductsPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl">
-            <div className="flex items-center justify-between p-5 border-b">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b shrink-0">
               <h3 className="font-semibold text-gray-900">
                 {editProduct ? 'Editar Producto' : 'Nuevo Producto'}
               </h3>
@@ -365,7 +397,7 @@ export default function ProductsPage() {
                 ✕
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto">
               {formError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                   {formError}
@@ -453,6 +485,47 @@ export default function ProductsPage() {
                     placeholder="Descripción del producto..."
                   />
                 </div>
+                <div className="col-span-2 border-t border-gray-100 pt-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.promotionActive}
+                      onChange={(e) => setForm({ ...form, promotionActive: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    <span className="label !mb-0">
+                      Tiene promoción (ej: regalo de fábrica, 2x1)
+                    </span>
+                  </label>
+                  {form.promotionActive && (
+                    <div className="mt-2 space-y-2">
+                      <input
+                        value={form.promotionText}
+                        onChange={(e) => setForm({ ...form, promotionText: e.target.value })}
+                        className="input"
+                        placeholder='Ej: "Llevate de regalo un marcador Bic"'
+                      />
+                      <div>
+                        <label className="label">Vence el (opcional)</label>
+                        <input
+                          type="date"
+                          value={form.promotionEndDate}
+                          onChange={(e) => setForm({ ...form, promotionEndDate: e.target.value })}
+                          className="input max-w-[200px]"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          Si la dejás vacía, la promo sigue activa hasta que la desactives a mano.
+                        </p>
+                      </div>
+                      {!editProduct?.promotionActive && (
+                        <p className="text-xs text-amber-600">
+                          Al guardar, se les manda un aviso a los clientes que tengan notificaciones
+                          activadas.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div className="col-span-2">
                   <label className="label">Foto (opcional)</label>
                   {imageError && (
@@ -490,7 +563,7 @@ export default function ProductsPage() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3 p-5 border-t">
+            <div className="flex justify-end gap-3 p-5 border-t shrink-0">
               <button onClick={() => setShowModal(false)} className="btn-secondary">
                 Cancelar
               </button>

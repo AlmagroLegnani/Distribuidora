@@ -35,6 +35,8 @@ export interface Product {
   stock: number;
   category: string | null;
   imageUrl: string | null;
+  /** Texto de la promoción vigente (ej: "Llevate de regalo un marcador Bic"), o null si no tiene o ya venció. */
+  promotionText: string | null;
 }
 
 export interface ClientInfo {

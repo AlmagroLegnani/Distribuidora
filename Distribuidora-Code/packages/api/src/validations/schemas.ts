@@ -22,6 +22,13 @@ export const createProductSchema = z.object({
   category: z.string().max(100).optional().nullable(),
   imageUrl: z.string().url().optional().nullable(),
   active: z.boolean().optional().default(true),
+  // Promoción "de fábrica" (ej: regalo, 2x1) — el texto es obligatorio recién
+  // cuando promotionActive va en true, eso se valida en productService (no
+  // acá) porque createProductSchema.partial() se reusa para el update y no
+  // queremos que un .refine() rompa esa composición.
+  promotionActive: z.boolean().optional().default(false),
+  promotionText: z.string().max(300).optional().nullable(),
+  promotionEndDate: z.coerce.date().optional().nullable(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

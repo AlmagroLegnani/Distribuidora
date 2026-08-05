@@ -30,10 +30,10 @@ const WEB_URL = process.env.WEB_URL || 'http://localhost:3000';
 
 export async function login(input: LoginInput): Promise<{ token: string; admin: object }> {
   const admin = await prisma.platformAdmin.findUnique({ where: { email: input.email } });
-  if (!admin) throw new AppError(401, 'Invalid email or password');
+  if (!admin) throw new AppError(401, 'Email o contraseña incorrectos');
 
   const match = await bcrypt.compare(input.password, admin.password);
-  if (!match) throw new AppError(401, 'Invalid email or password');
+  if (!match) throw new AppError(401, 'Email o contraseña incorrectos');
 
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new AppError(500, 'JWT_SECRET not configured', false);

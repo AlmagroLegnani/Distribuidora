@@ -155,6 +155,9 @@ export async function getPublicProducts(
         stock: true,
         category: true,
         imageUrl: true,
+        promotionActive: true,
+        promotionText: true,
+        promotionEndDate: true,
       },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
@@ -167,12 +170,20 @@ export async function getPublicProducts(
       ? await clientPriceService.getClientDiscountMap(distributor.id, client.id)
       : new Map<string, number>();
 
+    const today = new Date();
     const productsWithPricing = products.map((p) => {
+      const { promotionActive, promotionEndDate, ...rest } = p;
+      // La promo se sigue mostrando hasta el final del día de vencimiento;
+      // no hace falta un job que apague promotionActive solo, así el texto
+      // queda guardado por si la distribuidora la vuelve a activar después.
+      const promotionValid =
+        promotionActive && rest.promotionText && (!promotionEndDate || promotionEndDate >= today);
       const discountPercent = discountMap.get(p.id);
-      if (discountPercent !== undefined) {
-        return { ...p, originalPrice: p.price, price: clientPriceService.applyDiscount(p.price, discountPercent) };
-      }
-      return { ...p, originalPrice: null };
+      const priced =
+        discountPercent !== undefined
+          ? { ...rest, originalPrice: rest.price, price: clientPriceService.applyDiscount(rest.price, discountPercent) }
+          : { ...rest, originalPrice: null };
+      return { ...priced, promotionText: promotionValid ? rest.promotionText : null };
     });
 
     // Si el navegador mandó documento+código (ya pasó el AccessGate) pero

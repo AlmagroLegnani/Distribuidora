@@ -35,12 +35,17 @@ export async function apiRequest<T>(
 
   const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
 
-  if (res.status === 401) {
+  // Un 401 solo significa "se venció la sesión" si veníamos usando un token
+  // (request autenticado). Si no había token —como al intentar iniciar
+  // sesión con datos incorrectos— el 401 es la respuesta normal del backend
+  // a credenciales inválidas, y no hay que redirigir ni tapar el mensaje de
+  // error real: dejamos que caiga al manejo genérico de abajo.
+  if (res.status === 401 && token) {
     clearAuth();
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
     }
-    throw new Error('Session expired. Please log in again.');
+    throw new Error('Sesión expirada. Inicia sesión nuevamente.');
   }
 
   if (!res.ok) {
@@ -127,12 +132,15 @@ export async function uploadProductImage(file: File): Promise<{ url: string }> {
 
 export interface StockAlert {
   id: string;
-  type: 'LOW_STOCK' | 'PAYMENT_DUE';
+  type: 'LOW_STOCK' | 'PAYMENT_DUE' | 'REORDER_SUGGESTION';
   message: string | null;
   productId: string | null;
   productName: string | null;
   stockAtAlert: number | null;
   threshold: number | null;
+  clientId: string | null;
+  clientName: string | null;
+  reminderSentAt: string | null;
   read: boolean;
   emailSentAt: string | null;
   createdAt: string;
@@ -159,6 +167,11 @@ export async function markNotificationsRead(ids?: string[]): Promise<void> {
 /** Elimina una notificación puntual (ya resuelta, ej. se repuso el stock). */
 export async function deleteNotification(id: string): Promise<void> {
   await apiRequest(`/notifications/${id}`, { method: 'DELETE' });
+}
+
+/** Botón "Enviar recordatorio" de una sugerencia de recompra: manda un push al cliente. */
+export async function sendReminder(id: string): Promise<{ sent: boolean; reason?: string }> {
+  return apiRequest(`/notifications/${id}/send-reminder`, { method: 'POST' });
 }
 
 export const api = {

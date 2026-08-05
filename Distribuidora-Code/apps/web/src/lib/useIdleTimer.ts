@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-/** 15 minutos sin actividad — mismo valor para distribuidoras y clientes. */
-export const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+/** 3 horas sin actividad — solo se usa en el panel de la distribuidora (no en el catálogo de clientes). */
+export const INACTIVITY_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'wheel'] as const;
 
