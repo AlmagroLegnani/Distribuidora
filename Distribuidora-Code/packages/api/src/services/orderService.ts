@@ -305,6 +305,28 @@ export async function getClientOrderHistory(distributorId: string, clientId: str
   });
 }
 
+/**
+ * IDs de los productos que un cliente pidió más veces (contando cuántos
+ * pedidos distintos incluyeron ese producto), ordenados de más a menos
+ * frecuente — usado para armar la sección "Sueles pedir" del catálogo
+ * público. No filtra por producto activo/con stock: eso lo resuelve el
+ * caller al buscar los productos por estos IDs.
+ */
+export async function getFrequentProductIds(
+  distributorId: string,
+  clientId: string,
+  limit: number
+): Promise<string[]> {
+  const grouped = await prisma.orderItem.groupBy({
+    by: ['productId'],
+    where: { order: { distributorId, clientId } },
+    _count: { productId: true },
+    orderBy: { _count: { productId: 'desc' } },
+    take: limit,
+  });
+  return grouped.map((g) => g.productId);
+}
+
 export async function getDashboardStats(distributorId: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);

@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { checkLowStock } from './stockAlertService';
 import { notifyClientsOfPromotion } from './promotionNotificationService';
+import { notifyBackInStock } from './backInStockNotificationService';
 import type { PaginationParams } from '../lib/pagination';
 import type { CreateProductInput, UpdateProductInput } from '../validations/schemas';
 
@@ -105,6 +106,12 @@ export async function updateProduct(
     });
     if (data.stock !== undefined) {
       await checkLowStock(distributorId, productId);
+      // Transición 0 -> con stock: avisa a los que estaban en la lista de espera.
+      if (previous.stock === 0 && product.stock > 0) {
+        notifyBackInStock(distributorId, productId, product.name).catch((err) =>
+          console.error(`[${new Date().toISOString()}] [back-in-stock] Error notificando:`, err)
+        );
+      }
     }
     // Solo avisamos en la transición apagada -> prendida, no en cada edición
     // mientras ya está activa (si no, se le manda un push de nuevo cada vez
@@ -156,12 +163,17 @@ export async function deleteProduct(distributorId: string, productId: string) {
 }
 
 export async function updateStock(distributorId: string, productId: string, stock: number) {
-  await getProductById(distributorId, productId);
+  const previous = await getProductById(distributorId, productId);
   const product = await prisma.product.update({
     where: { id: productId },
     data: { stock, updatedAt: new Date() },
   });
   await checkLowStock(distributorId, productId);
+  if (previous.stock === 0 && product.stock > 0) {
+    notifyBackInStock(distributorId, productId, product.name).catch((err) =>
+      console.error(`[${new Date().toISOString()}] [back-in-stock] Error notificando:`, err)
+    );
+  }
   return product;
 }
 

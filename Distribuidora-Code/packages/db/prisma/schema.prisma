@@ -38,6 +38,7 @@ model Distributor {
   clientPrices ClientPrice[]
   impersonations ImpersonationLog[]
   pushSubscriptions PushSubscription[]
+  stockWaitlist StockWaitlist[]
 }
 
 // Administrador de la plataforma (dueño del SaaS, no un distribuidor)
@@ -181,9 +182,10 @@ model Product {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  orderItems   OrderItem[]
-  stockAlerts  StockAlert[]
-  clientPrices ClientPrice[]
+  orderItems    OrderItem[]
+  stockAlerts   StockAlert[]
+  clientPrices  ClientPrice[]
+  stockWaitlist StockWaitlist[]
 
   @@unique([distributorId, code])
 }
@@ -240,6 +242,7 @@ model Client {
   clientPrices      ClientPrice[]
   pushSubscriptions PushSubscription[]
   stockAlerts       StockAlert[]
+  stockWaitlist     StockWaitlist[]
 
   // Al menos uno de rut/cedula debe estar presente (ver migración: CHECK constraint).
   // Nulos no chocan entre sí en Postgres, por lo que ambos unique constraints conviven.
@@ -288,6 +291,27 @@ model ClientPrice {
   discountPercent Float
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+
+  @@unique([clientId, productId])
+  @@index([distributorId, productId])
+}
+
+// Cliente que pidió que le avisen cuando vuelva el stock de un producto que
+// está agotado ("🔔 Avisame cuando llegue" en el catálogo). Se cumple una
+// sola vez: cuando la distribuidora repone stock (pasa de 0 a más de 0), se
+// manda el push a todos los que están anotados para ese producto y se borra
+// la lista entera de ese producto (ver backInStockNotificationService.ts).
+// Si el producto se vuelve a agotar más adelante, el cliente puede anotarse
+// de nuevo.
+model StockWaitlist {
+  id            String      @id @default(cuid())
+  distributorId String
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id])
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  createdAt     DateTime    @default(now())
 
   @@unique([clientId, productId])
   @@index([distributorId, productId])

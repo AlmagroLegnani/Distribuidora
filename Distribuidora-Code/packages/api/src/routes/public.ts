@@ -8,6 +8,7 @@ import {
   createContactRequestSchema,
   pushSubscribeSchema,
   pushUnsubscribeSchema,
+  stockWaitlistSchema,
 } from '../validations/schemas';
 
 const router = Router();
@@ -28,6 +29,17 @@ router.post(
 
 // GET /api/public/:slug/products  — public product catalog
 router.get('/:slug/products', publicController.getPublicProducts);
+
+// GET /api/public/:slug/frequent-products  — "Sueles pedir" (requiere documento+code)
+router.get('/:slug/frequent-products', publicController.getFrequentProducts);
+
+// POST /api/public/:slug/notify-stock  — "Avisame cuando llegue" (producto agotado)
+router.post(
+  '/:slug/notify-stock',
+  publicWriteLimiter,
+  validate(stockWaitlistSchema),
+  publicController.joinStockWaitlist
+);
 
 // GET /api/public/:slug/client/:documento  — lookup client by RUT or Cédula (requires ?code=, brute-force protected)
 router.get('/:slug/client/:documento', authLimiter, publicController.getClientByDocumento);

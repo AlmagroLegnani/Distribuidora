@@ -37,6 +37,8 @@ export interface Product {
   imageUrl: string | null;
   /** Texto de la promoción vigente (ej: "Llevate de regalo un marcador Bic"), o null si no tiene o ya venció. */
   promotionText: string | null;
+  /** true si este cliente ya pidió que le avisen cuando vuelva el stock (solo relevante si stock === 0). */
+  waitlisted?: boolean;
 }
 
 export interface ClientInfo {
@@ -216,6 +218,27 @@ export async function unsubscribeFromPush(
   await apiFetch(`/public/${slug}/push-unsubscribe`, {
     method: 'POST',
     body: JSON.stringify({ documento, code, endpoint }),
+  });
+}
+
+/** Productos que este cliente pidió más seguido — sección "Sueles pedir" del catálogo. */
+export async function getFrequentProducts(slug: string): Promise<Product[]> {
+  const access = loadAccess(slug);
+  if (!access) return [];
+  const params = new URLSearchParams({ documento: access.documento, code: access.code });
+  return apiFetch<Product[]>(`/public/${slug}/frequent-products?${params.toString()}`);
+}
+
+/** Cliente pide que le avisen cuando vuelva el stock de un producto agotado. */
+export async function joinStockWaitlist(
+  slug: string,
+  documento: string,
+  code: string,
+  productId: string
+): Promise<void> {
+  await apiFetch(`/public/${slug}/notify-stock`, {
+    method: 'POST',
+    body: JSON.stringify({ documento, code, productId }),
   });
 }
 

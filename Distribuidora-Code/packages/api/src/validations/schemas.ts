@@ -267,6 +267,13 @@ export const pushUnsubscribeSchema = z.object({
   endpoint: z.string().url(),
 });
 
+// ─── Lista de espera de stock ("avisame cuando llegue") ─────────────────────
+export const stockWaitlistSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  documento: z.preprocess(onlyDigits, z.string().min(7, 'RUT o Cédula es obligatorio').max(12)),
+  productId: z.string().cuid('Invalid product ID'),
+});
+
 // ─── Settings ─────────────────────────────────────────────────────────────
 export const updateSettingsSchema = z.object({
   notificationEmail: z.string().email().optional().nullable(),
@@ -343,6 +350,7 @@ export type CreatePublicOrderInput = z.infer<typeof createPublicOrderSchema>;
 export type VerifyAccessCodeInput = z.infer<typeof verifyAccessCodeSchema>;
 export type PushSubscribeInput = z.infer<typeof pushSubscribeSchema>;
 export type PushUnsubscribeInput = z.infer<typeof pushUnsubscribeSchema>;
+export type StockWaitlistInput = z.infer<typeof stockWaitlistSchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;

@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/cart';
-import type { IvaType } from '@/lib/api';
+import { joinStockWaitlist, type IvaType } from '@/lib/api';
+import { loadAccess } from '@/lib/access';
 
 const IVA_LABELS: Record<IvaType, string> = {
   BASICA: 'IVA 22% incluido',
@@ -23,15 +24,37 @@ interface Product {
   category: string | null;
   imageUrl?: string | null;
   promotionText?: string | null;
+  waitlisted?: boolean;
 }
 
-export default function ProductCard({ product }: { product: Product }) {
+export default function ProductCard({ product, slug }: { product: Product; slug: string }) {
   const { addItem, items } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [waitlisted, setWaitlisted] = useState(product.waitlisted ?? false);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistError, setWaitlistError] = useState('');
 
   const inCart = items.find((i) => i.productId === product.id);
   const remainingStock = product.stock - (inCart?.quantity ?? 0);
+
+  async function handleJoinWaitlist() {
+    const access = loadAccess(slug);
+    if (!access) {
+      setWaitlistError('Ingresá tu código de acceso para poder anotarte.');
+      return;
+    }
+    setWaitlistLoading(true);
+    setWaitlistError('');
+    try {
+      await joinStockWaitlist(slug, access.documento, access.code, product.id);
+      setWaitlisted(true);
+    } catch (err) {
+      setWaitlistError(err instanceof Error ? err.message : 'No se pudo anotar. Probá de nuevo.');
+    } finally {
+      setWaitlistLoading(false);
+    }
+  }
 
   function handleAdd() {
     if (quantity < 1 || quantity > remainingStock) return;
@@ -162,8 +185,21 @@ export default function ProductCard({ product }: { product: Product }) {
             {added ? '✓ Agregado' : 'Agregar'}
           </button>
         </div>
+      ) : waitlisted ? (
+        <div className="text-center text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl py-2">
+          🔔 Te vamos a avisar
+        </div>
       ) : (
-        <div className="text-center text-xs text-gray-400 py-2">Producto agotado</div>
+        <div className="space-y-1">
+          <button
+            onClick={handleJoinWaitlist}
+            disabled={waitlistLoading}
+            className="w-full py-2 text-xs font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {waitlistLoading ? 'Anotando...' : '🔔 Avisame cuando llegue'}
+          </button>
+          {waitlistError && <p className="text-[10px] text-red-500 text-center">{waitlistError}</p>}
+        </div>
       )}
     </div>
   );

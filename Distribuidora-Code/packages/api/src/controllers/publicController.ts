@@ -5,8 +5,59 @@ import * as clientService from '../services/clientService';
 import * as clientPriceService from '../services/clientPriceService';
 import * as contactRequestService from '../services/contactRequestService';
 import * as pushSubscriptionService from '../services/pushSubscriptionService';
+import * as stockWaitlistService from '../services/stockWaitlistService';
 import { sendOrderNotifications } from '../services/notificationService';
 import { AppError } from '../middleware/errorHandler';
+
+// Selección de campos compartida entre el catálogo público completo y el
+// endpoint de "productos habituales" — así ambos arman la misma forma de
+// producto y pueden pasar por el mismo priceProductForClient() de abajo.
+const PUBLIC_PRODUCT_SELECT = {
+  id: true,
+  name: true,
+  code: true,
+  brand: true,
+  description: true,
+  price: true,
+  ivaType: true,
+  stock: true,
+  category: true,
+  imageUrl: true,
+  promotionActive: true,
+  promotionText: true,
+  promotionEndDate: true,
+} as const;
+
+type PublicProductRow = {
+  id: string;
+  price: number;
+  promotionActive: boolean;
+  promotionText: string | null;
+  promotionEndDate: Date | null;
+  [key: string]: unknown;
+};
+
+/**
+ * Le aplica a un producto el precio especial del cliente (si tiene uno) y
+ * decide si la promoción sigue vigente (activa, con texto, y sin vencer) —
+ * usado tanto en el catálogo público completo como en "productos habituales".
+ */
+function priceProductForClient(
+  p: PublicProductRow,
+  discountMap: Map<string, number>,
+  today: Date
+) {
+  const { promotionActive, promotionEndDate, ...rest } = p;
+  const promotionValid = Boolean(
+    promotionActive && rest.promotionText && (!promotionEndDate || promotionEndDate >= today)
+  );
+  const discountPercent = discountMap.get(p.id);
+  const priced =
+    discountPercent !== undefined
+      ? { ...rest, originalPrice: rest.price, price: clientPriceService.applyDiscount(rest.price as number, discountPercent) }
+      : { ...rest, originalPrice: null };
+  return { ...priced, promotionText: promotionValid ? rest.promotionText : null };
+}
 
 export async function listDistributors(
   req: Request,
@@ -133,7 +184,9 @@ export async function getPublicProducts(
       where: {
         distributorId: distributor.id,
         active: true,
-        stock: { gt: 0 },
+        // A propósito NO filtramos stock > 0 acá: un producto agotado se
+        // sigue mostrando (con el badge "Sin stock" que ya arma ProductCard)
+        // para que el cliente pueda anotarse en "Avisame cuando llegue".
         ...(search && {
           OR: [
             { name: { contains: search, mode: 'insensitive' } },
@@ -144,21 +197,7 @@ export async function getPublicProducts(
         ...(category && { category }),
         ...(brand && { brand }),
       },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        brand: true,
-        description: true,
-        price: true,
-        ivaType: true,
-        stock: true,
-        category: true,
-        imageUrl: true,
-        promotionActive: true,
-        promotionText: true,
-        promotionEndDate: true,
-      },
+      select: PUBLIC_PRODUCT_SELECT,
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
 
@@ -170,21 +209,21 @@ export async function getPublicProducts(
       ? await clientPriceService.getClientDiscountMap(distributor.id, client.id)
       : new Map<string, number>();
 
+    // Si el cliente está identificado, le marcamos en qué productos
+    // agotados ya está anotado, para que el botón diga "Ya te vamos a
+    // avisar" en vez de ofrecerle anotarse de nuevo.
+    const waitlistedIds = client
+      ? await stockWaitlistService.getWaitlistedProductIds(
+          client.id,
+          products.filter((p) => p.stock === 0).map((p) => p.id)
+        )
+      : new Set<string>();
+
     const today = new Date();
-    const productsWithPricing = products.map((p) => {
-      const { promotionActive, promotionEndDate, ...rest } = p;
-      // La promo se sigue mostrando hasta el final del día de vencimiento;
-      // no hace falta un job que apague promotionActive solo, así el texto
-      // queda guardado por si la distribuidora la vuelve a activar después.
-      const promotionValid =
-        promotionActive && rest.promotionText && (!promotionEndDate || promotionEndDate >= today);
-      const discountPercent = discountMap.get(p.id);
-      const priced =
-        discountPercent !== undefined
-          ? { ...rest, originalPrice: rest.price, price: clientPriceService.applyDiscount(rest.price, discountPercent) }
-          : { ...rest, originalPrice: null };
-      return { ...priced, promotionText: promotionValid ? rest.promotionText : null };
-    });
+    const productsWithPricing = products.map((p) => ({
+      ...priceProductForClient(p, discountMap, today),
+      waitlisted: waitlistedIds.has(p.id),
+    }));
 
     // Si el navegador mandó documento+código (ya pasó el AccessGate) pero
     // igual no se pudo identificar al cliente, es porque el código guardado
@@ -196,6 +235,87 @@ export async function getPublicProducts(
     const accessVerified = !(documento && code && !client);
 
     res.json({ products: productsWithPricing, accessVerified });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Productos que este cliente pidió más seguido, para la sección "Sueles
+ * pedir" del catálogo — solo entre los que siguen activos y con stock. Si
+ * no se pudo identificar al cliente (no mandó documento+código válidos),
+ * devuelve una lista vacía en vez de error, para no romper la carga del
+ * catálogo por esto.
+ */
+export async function getFrequentProducts(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code } = req.query as Record<string, string | undefined>;
+    const client = await clientService.findVerifiedClientSoft(distributor.id, documento, code);
+    if (!client) {
+      res.json([]);
+      return;
+    }
+
+    const productIds = await orderService.getFrequentProductIds(distributor.id, client.id, 8);
+    if (productIds.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, distributorId: distributor.id, active: true, stock: { gt: 0 } },
+      select: PUBLIC_PRODUCT_SELECT,
+    });
+
+    const discountMap = await clientPriceService.getClientDiscountMap(distributor.id, client.id);
+    const today = new Date();
+    const rankById = new Map(productIds.map((id, i) => [id, i]));
+    const result = products
+      .map((p) => priceProductForClient(p, discountMap, today))
+      .sort((a, b) => (rankById.get(a.id as string) ?? 0) - (rankById.get(b.id as string) ?? 0));
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Cliente pide que le avisen cuando vuelva el stock de un producto agotado. */
+export async function joinStockWaitlist(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const distributor = await prisma.distributor.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, active: true },
+    });
+    if (!distributor || !distributor.active) {
+      throw new AppError(404, 'Distributor not found');
+    }
+
+    const { documento, code, productId } = req.body as {
+      documento: string;
+      code: string;
+      productId: string;
+    };
+    const client = await clientService.verifyClientAccessCode(distributor.id, documento, code);
+    await stockWaitlistService.joinWaitlist(distributor.id, client.id, productId);
+
+    res.status(201).json({ waitlisted: true });
   } catch (err) {
     next(err);
   }

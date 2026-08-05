@@ -2,13 +2,16 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { getProducts, type Product } from '@/lib/api';
-import { clearAccess } from '@/lib/access';
+import { getProducts, getFrequentProducts, type Product } from '@/lib/api';
+import { clearAccess, loadAccess } from '@/lib/access';
+import { useCart } from '@/context/CartContext';
+import { formatCurrency } from '@/lib/cart';
 import ProductCard from '@/components/ProductCard';
 
 export default function CatalogPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const { addItem } = useCart();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [accessVerified, setAccessVerified] = useState(true);
@@ -18,7 +21,24 @@ export default function CatalogPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [brand, setBrand] = useState('');
   const [brands, setBrands] = useState<string[]>([]);
+  const [frequentProducts, setFrequentProducts] = useState<Product[]>([]);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
+
+  function quickAdd(product: Product) {
+    if (product.stock < 1) return;
+    addItem({
+      productId: product.id,
+      name: product.name,
+      code: product.code,
+      price: product.price,
+      ivaType: product.ivaType,
+      quantity: 1,
+      maxStock: product.stock,
+    });
+    setJustAdded(product.id);
+    setTimeout(() => setJustAdded(null), 1500);
+  }
 
   const fetchProducts = useCallback(
     async (q?: string, cat?: string, br?: string) => {
@@ -50,6 +70,15 @@ export default function CatalogPage() {
     fetchProducts();
   }, [fetchProducts]);
 
+  useEffect(() => {
+    // Solo tiene sentido pedir "Sueles pedir" si el cliente ya se identificó
+    // (código de acceso guardado) — si no, la lista siempre va a venir vacía.
+    if (!loadAccess(slug)) return;
+    getFrequentProducts(slug)
+      .then(setFrequentProducts)
+      .catch(() => setFrequentProducts([]));
+  }, [slug]);
+
   function handleSearch(value: string) {
     setSearch(value);
     clearTimeout(searchTimeout.current);
@@ -80,6 +109,36 @@ export default function CatalogPage() {
           >
             Volver a ingresar tu código
           </button>
+        </div>
+      )}
+
+      {/* Sueles pedir — recomendaciones activas basadas en el historial del cliente */}
+      {frequentProducts.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-gray-700">Sueles pedir</p>
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+            {frequentProducts.map((product) => (
+              <div
+                key={product.id}
+                className="shrink-0 w-40 border border-gray-200 rounded-xl p-3 flex flex-col gap-1.5 bg-white"
+              >
+                <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">
+                  {product.name}
+                </p>
+                <p className="text-sm font-bold text-blue-700">{formatCurrency(product.price)}</p>
+                <button
+                  onClick={() => quickAdd(product)}
+                  className={`w-full py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    justAdded === product.id
+                      ? 'bg-green-500 text-white'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {justAdded === product.id ? '✓ Agregado' : '+ Agregar'}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -167,7 +226,7 @@ export default function CatalogPage() {
           <p className="text-sm text-gray-500">{products.length} producto(s) disponibles</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} slug={slug} />
             ))}
           </div>
         </>
