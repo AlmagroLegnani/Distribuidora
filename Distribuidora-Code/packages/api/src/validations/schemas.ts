@@ -151,6 +151,13 @@ export const markPaidSchema = z.object({
   note: z.string().max(500).optional(),
 });
 
+// Cambia el plan/monto de una distribuidora ya existente — pensado para
+// reclasificarla entre los tiers de tamaño (Pequeña/Mediana/Grande) cuando
+// crece o achica, o para pasarla a un plan con un monto negociado aparte.
+export const changeDistributorPlanSchema = z.object({
+  planId: z.string().cuid('Invalid plan ID'),
+});
+
 // ─── Alta de distribuidora por la plataforma ─────────────────────────────────
 // Ya no hay autoregistro público: el equipo de TuStockApp carga la distribuidora
 // desde el panel de superadmin. El sistema genera un código de acceso único y
@@ -355,6 +362,7 @@ export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 export type MarkPaidInput = z.infer<typeof markPaidSchema>;
+export type ChangeDistributorPlanInput = z.infer<typeof changeDistributorPlanSchema>;
 export type CreateDistributorInput = z.infer<typeof createDistributorSchema>;
 export type CreateContactRequestInput = z.infer<typeof createContactRequestSchema>;
 export type UpdateContactRequestStatusInput = z.infer<typeof updateContactRequestStatusSchema>;

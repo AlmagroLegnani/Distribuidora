@@ -35,6 +35,11 @@ interface Plan {
   active: boolean;
 }
 
+/** Nombre corto para mostrar en el badge de la lista, ej. "Mediana ($3.500/mes)". */
+function planOptionLabel(plan: Plan): string {
+  return `${plan.name} — ${formatCurrency(plan.price, plan.currency)}/mes`;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT: 'Pendiente de pago',
   TRIALING: 'En prueba',
@@ -53,6 +58,7 @@ const EMPTY_CREATE_FORM = {
   cedula: '',
   address: '',
   city: '',
+  planId: '',
 };
 
 function formatDate(date: string | null): string {
@@ -100,7 +106,7 @@ export default function DistributorsPage() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const [plan, setPlan] = useState<Plan | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
   const [creating, setCreating] = useState(false);
@@ -123,18 +129,19 @@ export default function DistributorsPage() {
 
   useEffect(() => {
     fetchDistributors();
-    // Hay un solo plan/precio para todos — lo traemos para asignarlo
-    // automáticamente al crear una distribuidora, sin pedírselo al operador.
+    // Planes disponibles para elegir al dar de alta una distribuidora — uno
+    // por tamaño de empresa (Pequeña/Mediana/Grande), cada uno con su propio
+    // monto mensual.
     api
       .get<Plan[]>('/plans')
-      .then((data) => setPlan(data[0] ?? null))
+      .then((data) => setPlans(data.filter((p) => p.active)))
       .catch(() => null);
   }, [fetchDistributors]);
 
   function openCreateForm() {
     setCreateError('');
     setCreatedResult(null);
-    setCreateForm(EMPTY_CREATE_FORM);
+    setCreateForm({ ...EMPTY_CREATE_FORM, planId: plans[0]?.id ?? '' });
     setShowCreateForm(true);
   }
 
@@ -142,8 +149,8 @@ export default function DistributorsPage() {
     e.preventDefault();
     setCreateError('');
 
-    if (!plan) {
-      setCreateError('Todavía no hay un plan configurado. Cargalo primero en la sección "Plan".');
+    if (!createForm.planId) {
+      setCreateError('Elegí qué plan le corresponde. Si no hay ninguno, cargalo primero en "Planes".');
       return;
     }
 
@@ -161,7 +168,7 @@ export default function DistributorsPage() {
         cedula: createForm.cedula || undefined,
         address: createForm.address || undefined,
         city: createForm.city || undefined,
-        planId: plan.id,
+        planId: createForm.planId,
       });
       setCreatedResult({
         name: result.distributor.name,
@@ -378,11 +385,31 @@ export default function DistributorsPage() {
                     El cliente va a poder filtrar por esto en "Elegí tu distribuidora".
                   </p>
                 </div>
+                <div className="col-span-2">
+                  <label className="label">Plan (según tamaño de la empresa)</label>
+                  <select
+                    className="input"
+                    required
+                    value={createForm.planId}
+                    onChange={(e) => setCreateForm({ ...createForm, planId: e.target.value })}
+                  >
+                    <option value="">Elegí un plan...</option>
+                    {plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {planOptionLabel(p)}
+                      </option>
+                    ))}
+                  </select>
+                  {plans.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Todavía no hay ningún plan cargado — creá al menos uno en "Planes" antes de dar de alta distribuidoras.
+                    </p>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg p-2">
-                {plan
-                  ? `Se le asigna el ${plan.name} (${formatCurrency(plan.price, plan.currency)}/mes) con 90 días de prueba gratuita. El código de acceso se genera y se envía por email al crearla.`
-                  : 'Todavía no hay un plan configurado — cargalo primero en la sección "Plan" del menú.'}
+                Se le asignan 90 días de prueba gratuita; pasado ese plazo paga el monto del plan
+                elegido. El código de acceso se genera y se envía por email al crearla.
               </p>
               <div className="flex gap-2 pt-2">
                 <button type="submit" disabled={creating} className="btn-primary text-sm">

@@ -266,6 +266,29 @@ export async function activate(distributorId: string) {
   return getDistributorDetail(distributorId);
 }
 
+/**
+ * Cambia el plan de una distribuidora ya existente — pensado para pasarla de
+ * un tier de tamaño a otro (Pequeña/Mediana/Grande) cuando corresponda, sin
+ * tocar el resto de la suscripción (estado, período vigente, historial de
+ * pagos). El nuevo monto se cobra recién en el próximo pago/vencimiento.
+ */
+export async function changePlan(distributorId: string, planId: string) {
+  const plan = await prisma.plan.findUnique({ where: { id: planId } });
+  if (!plan) throw new AppError(404, 'Plan not found');
+
+  const sub = await prisma.subscription.findUnique({ where: { distributorId } });
+  if (!sub) {
+    throw new AppError(
+      400,
+      'Esta distribuidora no tiene una suscripción asociada (fue provisionada manualmente), así que no tiene un plan que cambiar.'
+    );
+  }
+
+  await prisma.subscription.update({ where: { distributorId }, data: { planId } });
+
+  return getDistributorDetail(distributorId);
+}
+
 export async function markPaid(distributorId: string, input: MarkPaidInput) {
   const sub = await prisma.subscription.findUnique({
     where: { distributorId },

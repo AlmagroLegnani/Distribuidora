@@ -12,76 +12,118 @@ interface Plan {
   active: boolean;
 }
 
-const emptyForm = {
-  name: 'Plan TuStockApp',
-  slug: 'unico',
-  price: 0,
-  currency: 'UYU',
-};
+interface PlanForm {
+  name: string;
+  slug: string;
+  price: string;
+  currency: string;
+}
 
-// Un solo plan/precio para todas las distribuidoras — no hay niveles ni
-// tiers, y mientras paguen el uso es totalmente libre (sin límites de
-// productos, clientes ni pedidos). Esta pantalla edita ese único plan
-// (o lo crea la primera vez).
-export default function PlanPage() {
-  const [plan, setPlan] = useState<Plan | null>(null);
+const EMPTY_FORM: PlanForm = { name: '', slug: '', price: '', currency: 'UYU' };
+
+// Plantilla para arrancar rápido la primera vez — el operador puede editar
+// nombre y precio libremente, esto es solo para no partir de un form vacío.
+const STARTER_TIERS: PlanForm[] = [
+  { name: 'Pequeña empresa', slug: 'pequena', price: '', currency: 'UYU' },
+  { name: 'Mediana empresa', slug: 'mediana', price: '', currency: 'UYU' },
+  { name: 'Gran empresa', slug: 'grande', price: '', currency: 'UYU' },
+];
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function formatCurrency(amount: number, currency: string): string {
+  return new Intl.NumberFormat('es-UY', { style: 'currency', currency, minimumFractionDigits: 0 }).format(amount);
+}
+
+// Un plan por tamaño de empresa (Pequeña / Mediana / Grande, o los que hagan
+// falta) — cada uno con su propio monto mensual, así se le puede cotizar
+// distinto a cada distribuidora según su tamaño. Al crear/reclasificar una
+// distribuidora se elige cuál de estos planes le corresponde (ver
+// "Nueva distribuidora" en /platform y "Cambiar plan" en su ficha).
+export default function PlansPage() {
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchPlan = useCallback(async () => {
+  const [editingId, setEditingId] = useState<string | null>(null); // null = no hay form de edición abierto; 'new' = alta
+  const [form, setForm] = useState<PlanForm>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const fetchPlans = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.get<Plan[]>('/plans');
-      const current = data[0] ?? null;
-      setPlan(current);
-      if (current) {
-        setForm({
-          name: current.name,
-          slug: current.slug,
-          price: current.price,
-          currency: current.currency,
-        });
-      }
+      setPlans(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar los planes');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchPlan();
-  }, [fetchPlan]);
+    fetchPlans();
+  }, [fetchPlans]);
+
+  function openNew(starter?: PlanForm) {
+    setFormError('');
+    setForm(starter ?? EMPTY_FORM);
+    setEditingId('new');
+  }
+
+  function openEdit(plan: Plan) {
+    setFormError('');
+    setForm({ name: plan.name, slug: plan.slug, price: String(plan.price), currency: plan.currency });
+    setEditingId(plan.id);
+  }
 
   async function handleSave() {
-    setError('');
-    setSaved(false);
+    setFormError('');
+    if (!form.name.trim() || !form.slug.trim() || form.price === '') {
+      setFormError('Completá nombre, identificador y precio.');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
-        name: form.name,
-        slug: form.slug,
+        name: form.name.trim(),
+        slug: slugify(form.slug),
         price: Number(form.price),
-        currency: form.currency,
-        // Sin límites: mientras paguen la mensualidad, el uso es total y libre.
+        currency: form.currency.trim() || 'UYU',
         maxProducts: null,
         maxClients: null,
         maxOrdersMonth: null,
         active: true,
       };
 
-      if (plan) {
-        await api.put(`/plans/${plan.id}`, payload);
+      if (editingId && editingId !== 'new') {
+        await api.put(`/plans/${editingId}`, payload);
       } else {
         await api.post('/plans', payload);
       }
-      setSaved(true);
-      await fetchPlan();
+      setEditingId(null);
+      await fetchPlans();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar el plan');
+      setFormError(err instanceof Error ? err.message : 'Error al guardar el plan');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function toggleActive(plan: Plan) {
+    try {
+      await api.put(`/plans/${plan.id}`, { active: !plan.active });
+      await fetchPlans();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al actualizar el plan');
     }
   }
 
@@ -95,81 +137,157 @@ export default function PlanPage() {
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Plan</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Un solo precio para todas las distribuidoras: 3 meses de prueba gratuita y después se paga
-          este monto por mes. Mientras estén al día con el pago, el uso es total y libre — sin límites
-          de productos, clientes ni pedidos.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Planes</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Un monto distinto según el tamaño de la distribuidora — 3 meses de prueba gratuita y
+            después se paga el monto del plan que le corresponda. El uso es total y libre en
+            cualquier plan (sin límites de productos, clientes ni pedidos).
+          </p>
+        </div>
+        {editingId === null && (
+          <button onClick={() => openNew()} className="btn-primary text-sm whitespace-nowrap">
+            + Nuevo plan
+          </button>
+        )}
       </div>
 
-      <div className="grid md:grid-cols-2 gap-5 items-start">
-        {/* Plan actual — lo que está guardado ahora mismo, no lo que hay tipeado sin guardar */}
-        <div className="card p-5 space-y-3">
-          <h3 className="font-semibold text-gray-900 text-sm">Plan actual</h3>
-          {plan ? (
-            <>
+      {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
+
+      {plans.length === 0 && editingId === null && (
+        <div className="card p-6 text-center space-y-3">
+          <p className="text-sm text-gray-500">Todavía no creaste ningún plan.</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {STARTER_TIERS.map((tier) => (
+              <button key={tier.slug} onClick={() => openNew(tier)} className="btn-secondary text-sm">
+                + {tier.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {plans.map((plan) =>
+          editingId === plan.id ? (
+            <PlanFormFields
+              key={plan.id}
+              form={form}
+              setForm={setForm}
+              onSave={handleSave}
+              onCancel={() => setEditingId(null)}
+              saving={saving}
+              error={formError}
+              isNew={false}
+            />
+          ) : (
+            <div key={plan.id} className="card p-5 flex items-center justify-between gap-4">
               <div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {new Intl.NumberFormat('es-UY', {
-                    style: 'currency',
-                    currency: plan.currency,
-                    minimumFractionDigits: 0,
-                  }).format(plan.price)}
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-gray-900">{plan.name}</span>
+                  {!plan.active && (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                      Inactivo
+                    </span>
+                  )}
+                </div>
+                <div className="text-xl font-bold text-gray-900 mt-1">
+                  {formatCurrency(plan.price, plan.currency)}
                   <span className="text-sm font-normal text-gray-500">/mes</span>
                 </div>
-                <div className="text-sm text-gray-600 mt-1">{plan.name}</div>
               </div>
-              <p className="text-xs text-gray-400">
-                Esto es lo que le toca pagar, mes a mes, a todas las distribuidoras (después de sus 3
-                meses de prueba gratuita).
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-500">Todavía no creaste el plan. Completá el formulario y guardalo.</p>
-          )}
-        </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => openEdit(plan)} className="btn-secondary text-xs">
+                  Editar
+                </button>
+                <button onClick={() => toggleActive(plan)} className="text-xs text-gray-500 hover:text-gray-700">
+                  {plan.active ? 'Desactivar' : 'Activar'}
+                </button>
+              </div>
+            </div>
+          )
+        )}
 
-        {/* Editar */}
-        <div className="card p-5 space-y-3">
-          {error && <div className="p-2 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
-          {saved && !error && (
-            <div className="p-2 bg-green-50 text-green-700 text-sm rounded">Guardado.</div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="label">Nombre</label>
-              <input
-                className="input"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="label">Precio mensual</label>
-              <input
-                type="number"
-                className="input"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <label className="label">Moneda</label>
-              <input
-                className="input"
-                value={form.currency}
-                onChange={(e) => setForm({ ...form, currency: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="pt-2">
-            <button onClick={handleSave} disabled={saving} className="btn-primary text-sm">
-              {saving ? 'Guardando...' : plan ? 'Guardar cambios' : 'Crear plan'}
-            </button>
-          </div>
+        {editingId === 'new' && (
+          <PlanFormFields
+            form={form}
+            setForm={setForm}
+            onSave={handleSave}
+            onCancel={() => setEditingId(null)}
+            saving={saving}
+            error={formError}
+            isNew
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlanFormFields({
+  form,
+  setForm,
+  onSave,
+  onCancel,
+  saving,
+  error,
+  isNew,
+}: {
+  form: PlanForm;
+  setForm: (f: PlanForm) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string;
+  isNew: boolean;
+}) {
+  return (
+    <div className="card p-5 space-y-3 border-blue-200">
+      <h3 className="font-semibold text-gray-900 text-sm">{isNew ? 'Nuevo plan' : 'Editar plan'}</h3>
+      {error && <div className="p-2 bg-red-50 text-red-700 text-sm rounded">{error}</div>}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <label className="label">Nombre</label>
+          <input
+            className="input"
+            value={form.name}
+            placeholder="Ej: Mediana empresa"
+            onChange={(e) => {
+              const name = e.target.value;
+              setForm({ ...form, name, slug: form.slug === slugify(form.name) ? slugify(name) : form.slug });
+            }}
+          />
         </div>
+        <div>
+          <label className="label">Precio mensual</label>
+          <input
+            type="number"
+            className="input"
+            value={form.price}
+            onChange={(e) => setForm({ ...form, price: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Moneda</label>
+          <input className="input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
+        </div>
+        <div className="col-span-2">
+          <label className="label">Identificador interno (slug)</label>
+          <input
+            className="input font-mono"
+            value={form.slug}
+            onChange={(e) => setForm({ ...form, slug: slugify(e.target.value) })}
+          />
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button onClick={onSave} disabled={saving} className="btn-primary text-sm">
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+        <button onClick={onCancel} className="btn-secondary text-sm">
+          Cancelar
+        </button>
       </div>
     </div>
   );

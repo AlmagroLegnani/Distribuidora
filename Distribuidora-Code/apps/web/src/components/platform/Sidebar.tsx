@@ -10,7 +10,7 @@ import { logout } from '@/lib/platform/auth';
 const navItems = [
   { href: '/platform', label: 'Distribuidoras' },
   { href: '/platform/contact-requests', label: 'Solicitudes' },
-  { href: '/platform/plans', label: 'Plan' },
+  { href: '/platform/plans', label: 'Planes' },
   { href: '/platform/account', label: 'Mi cuenta' },
 ];
 
