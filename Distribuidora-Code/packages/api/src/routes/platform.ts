@@ -9,6 +9,7 @@ import {
   updatePlanSchema,
   markPaidSchema,
   createDistributorSchema,
+  changeDistributorPlanSchema,
   updateContactRequestStatusSchema,
   updatePlatformProfileSchema,
   changePlatformPasswordSchema,
@@ -64,6 +65,14 @@ router.patch(
   '/distributors/:id/activate',
   platformAuthMiddleware,
   platformController.activateDistributor
+);
+
+// PATCH /api/platform/distributors/:id/plan — reclasifica el tier de tamaño (o monto negociado)
+router.patch(
+  '/distributors/:id/plan',
+  platformAuthMiddleware,
+  validate(changeDistributorPlanSchema),
+  platformController.changeDistributorPlan
 );
 
 // POST /api/platform/distributors/:id/mark-paid

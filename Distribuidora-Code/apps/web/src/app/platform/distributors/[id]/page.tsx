@@ -5,6 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/platform/api';
 
+interface Plan {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  active: boolean;
+}
+
 interface Payment {
   id: string;
   amount: number;
@@ -33,7 +41,7 @@ interface DistributorDetail {
         status: string;
         currentPeriodEnd: string | null;
         trialEndsAt: string | null;
-        plan: { name: string; price: number; currency: string };
+        plan: { id: string; name: string; price: number; currency: string };
         payments: Payment[];
       }
     | null;
@@ -76,11 +84,16 @@ export default function DistributorDetailPage() {
   const [busy, setBusy] = useState(false);
   const [impersonating, setImpersonating] = useState(false);
 
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [changingPlan, setChangingPlan] = useState(false);
+  const [newPlanId, setNewPlanId] = useState('');
+
   const fetchDetail = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.get<DistributorDetail>(`/distributors/${id}`);
       setDistributor(data);
+      setNewPlanId(data.subscription?.plan.id ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar la distribuidora');
     } finally {
@@ -90,7 +103,24 @@ export default function DistributorDetailPage() {
 
   useEffect(() => {
     fetchDetail();
+    api
+      .get<Plan[]>('/plans')
+      .then((data) => setPlans(data.filter((p) => p.active)))
+      .catch(() => null);
   }, [fetchDetail]);
+
+  async function handleChangePlan() {
+    if (!distributor || !newPlanId || newPlanId === distributor.subscription?.plan.id) return;
+    setChangingPlan(true);
+    try {
+      await api.patch(`/distributors/${id}/plan`, { planId: newPlanId });
+      await fetchDetail();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al cambiar el plan');
+    } finally {
+      setChangingPlan(false);
+    }
+  }
 
   async function handleSuspend() {
     setBusy(true);
@@ -244,6 +274,34 @@ export default function DistributorDetailPage() {
                 {formatDate(sub.currentPeriodEnd ?? sub.trialEndsAt)}
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1 pb-1">
+            <select
+              className="input text-xs py-1.5 max-w-xs"
+              value={newPlanId}
+              onChange={(e) => setNewPlanId(e.target.value)}
+            >
+              {/* El plan actual puede estar desactivado (ya no se ofrece para altas nuevas) —
+                  igual lo mostramos acá para que el select no quede vacío/desincronizado. */}
+              {!plans.some((p) => p.id === sub.plan.id) && (
+                <option value={sub.plan.id}>
+                  {sub.plan.name} — {formatCurrency(sub.plan.price, sub.plan.currency)}/mes (actual, inactivo)
+                </option>
+              )}
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} — {formatCurrency(p.price, p.currency)}/mes
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleChangePlan}
+              disabled={changingPlan || !newPlanId || newPlanId === sub.plan.id}
+              className="btn-secondary text-xs whitespace-nowrap"
+            >
+              {changingPlan ? 'Cambiando...' : 'Cambiar plan'}
+            </button>
           </div>
 
           <div className="flex gap-2 pt-2">

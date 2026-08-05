@@ -116,6 +116,19 @@ export async function activateDistributor(
   }
 }
 
+export async function changeDistributorPlan(
+  req: PlatformAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const distributor = await platformService.changePlan(req.params.id, req.body.planId);
+    res.json(distributor);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function notifyPaymentDue(
   req: PlatformAuthRequest,
   res: Response,
