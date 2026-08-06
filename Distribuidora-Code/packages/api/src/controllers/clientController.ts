@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import * as clientService from '../services/clientService';
 import * as clientPriceService from '../services/clientPriceService';
+import * as recurringOrderService from '../services/recurringOrderService';
 import { AuthRequest } from '../middleware/auth';
 import { parsePagination } from '../lib/pagination';
 
@@ -118,6 +119,38 @@ export async function setClientPrice(
       req.params.id,
       productId,
       discountPercent
+    );
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Pedidos recurrentes que este cliente tiene configurados ("todos los X pedime esto"). */
+export async function getClientRecurringOrders(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const orders = await recurringOrderService.listRecurringOrders(req.distributorId!, req.params.id);
+    res.json(orders);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Botón "Recordar" en la tarjeta de pedidos recurrentes: push puntual al cliente. */
+export async function sendClientRecurringOrderReminder(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await recurringOrderService.sendRecurringOrderReminder(
+      req.distributorId!,
+      req.params.id,
+      req.params.recurringOrderId
     );
     res.json(result);
   } catch (err) {

@@ -69,6 +69,51 @@ export async function deleteRecurringOrder(distributorId: string, clientId: stri
   await prisma.recurringOrder.delete({ where: { id } });
 }
 
+/**
+ * Botón "Recordar" en el panel de la distribuidora: manda un push puntual al
+ * cliente para avisarle que todavía no armó su pedido recurrente de hoy (por
+ * si se le pasó, o quiere ajustar algo antes de que se genere solo). No hace
+ * falta esperar al scheduler ni a que ya haya pasado el día — es a demanda.
+ */
+export async function sendRecurringOrderReminder(
+  distributorId: string,
+  clientId: string,
+  recurringOrderId: string
+): Promise<{ sent: boolean; reason?: string }> {
+  const template = await prisma.recurringOrder.findFirst({
+    where: { id: recurringOrderId, distributorId, clientId },
+    include: { items: { include: { product: { select: { name: true } } } } },
+  });
+  if (!template) throw new AppError(404, 'Pedido recurrente no encontrado');
+
+  if (!isPushConfigured()) {
+    return { sent: false, reason: 'Las notificaciones push no están configuradas.' };
+  }
+
+  const subscriptions = await prisma.pushSubscription.findMany({ where: { clientId } });
+  if (subscriptions.length === 0) {
+    return { sent: false, reason: 'Este cliente todavía no activó las notificaciones en su celular.' };
+  }
+
+  const distributor = await prisma.distributor.findUnique({
+    where: { id: distributorId },
+    select: { name: true, slug: true },
+  });
+
+  const itemsText = template.items.map((i) => `${i.product.name} x${i.quantity}`).join(', ');
+  const payload = {
+    title: distributor?.name || 'Tu distribuidora',
+    body: `No te olvides de tu pedido de los ${DAY_NAMES[template.dayOfWeek]}: ${itemsText}. ¿Lo armamos?`,
+    url: `${PLATFORM_URL}/${distributor?.slug || ''}/cart`,
+  };
+
+  await Promise.allSettled(
+    subscriptions.map((sub) => sendPushToSubscription(sub.id, sub.endpoint, sub.p256dh, sub.auth, payload))
+  );
+
+  return { sent: true };
+}
+
 function getUruguayToday(): { dayOfWeek: number; dateOnly: Date } {
   const now = new Date();
   const uruguayNow = new Date(now.getTime() - 3 * 60 * 60 * 1000); // UTC-3 todo el año

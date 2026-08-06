@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback, FormEvent } from 'react';
-import { api } from '@/lib/admin/api';
+import {
+  api,
+  getClientRecurringOrders,
+  sendRecurringOrderReminder,
+  type ClientRecurringOrder,
+} from '@/lib/admin/api';
 import { formatDate, formatCurrency, STATUS_LABELS, STATUS_BADGE, OrderStatus } from '@/lib/admin/utils';
 
 interface Client {
@@ -57,6 +62,8 @@ interface ClientForm {
 
 const EMPTY_FORM: ClientForm = { rut: '', cedula: '', name: '', email: '', phone: '', address: '' };
 
+const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +87,11 @@ export default function ClientsPage() {
   const [specialPrices, setSpecialPrices] = useState<ClientSpecialPrice[]>([]);
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [removingPriceId, setRemovingPriceId] = useState<string | null>(null);
+
+  const [recurringOrders, setRecurringOrders] = useState<ClientRecurringOrder[]>([]);
+  const [loadingRecurring, setLoadingRecurring] = useState(false);
+  const [remindingId, setRemindingId] = useState<string | null>(null);
+  const [remindMsg, setRemindMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [showAddDiscount, setShowAddDiscount] = useState(false);
@@ -115,6 +127,7 @@ export default function ClientsPage() {
   async function viewDetail(client: Client) {
     setLoadingDetail(true);
     setLoadingPrices(true);
+    setLoadingRecurring(true);
     setShowAddDiscount(false);
     setShowEditForm(false);
     try {
@@ -132,6 +145,38 @@ export default function ClientsPage() {
       console.error(err);
     } finally {
       setLoadingPrices(false);
+    }
+    try {
+      const recurring = await getClientRecurringOrders(client.id);
+      setRecurringOrders(recurring);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingRecurring(false);
+    }
+  }
+
+  async function handleRemind(recurringOrderId: string) {
+    if (!selected) return;
+    setRemindingId(recurringOrderId);
+    setRemindMsg(null);
+    try {
+      const result = await sendRecurringOrderReminder(selected.id, recurringOrderId);
+      setRemindMsg({
+        id: recurringOrderId,
+        ok: result.sent,
+        text: result.sent
+          ? 'Recordatorio enviado al celular del cliente.'
+          : result.reason || 'No se pudo enviar el recordatorio.',
+      });
+    } catch (err) {
+      setRemindMsg({
+        id: recurringOrderId,
+        ok: false,
+        text: err instanceof Error ? err.message : 'Error al enviar el recordatorio',
+      });
+    } finally {
+      setRemindingId(null);
     }
   }
 
@@ -699,6 +744,69 @@ export default function ClientsPage() {
                             Quitar
                           </button>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="card overflow-hidden">
+                <div className="p-3 border-b text-sm font-medium text-gray-700">
+                  Pedidos recurrentes {!loadingRecurring && `(${recurringOrders.length})`}
+                </div>
+                {loadingRecurring ? (
+                  <div className="flex items-center justify-center h-16">
+                    <div className="animate-spin w-5 h-5 border-4 border-blue-600 border-t-transparent rounded-full" />
+                  </div>
+                ) : recurringOrders.length === 0 ? (
+                  <p className="p-4 text-sm text-gray-400">
+                    Este cliente no tiene pedidos recurrentes configurados.
+                  </p>
+                ) : (
+                  <div className="divide-y">
+                    {recurringOrders.map((ro) => (
+                      <div key={ro.id} className="p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-900 capitalize">
+                            Todos los {DAY_NAMES[ro.dayOfWeek]}
+                          </span>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              ro.active
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-500'
+                            }`}
+                          >
+                            {ro.active ? 'Activo' : 'Pausado'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {ro.items
+                            .map((i) => `${i.product.name} x${i.quantity}`)
+                            .join(', ')}
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <div className="text-xs text-gray-400">
+                            Última generación:{' '}
+                            {ro.lastGeneratedAt ? formatDate(ro.lastGeneratedAt) : 'todavía no se generó'}
+                          </div>
+                          <button
+                            onClick={() => handleRemind(ro.id)}
+                            disabled={remindingId === ro.id}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50 shrink-0"
+                          >
+                            {remindingId === ro.id ? 'Enviando...' : '🔔 Recordar'}
+                          </button>
+                        </div>
+                        {remindMsg && remindMsg.id === ro.id && (
+                          <div
+                            className={`text-xs mt-1.5 px-2 py-1 rounded ${
+                              remindMsg.ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+                            }`}
+                          >
+                            {remindMsg.text}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

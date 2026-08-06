@@ -210,6 +210,37 @@ export async function getClientOrderBalance(): Promise<ClientOrderBalance[]> {
   return apiRequest<ClientOrderBalance[]>('/stats/balance/clientes', { method: 'GET' });
 }
 
+export interface ClientRecurringOrderItem {
+  id: string;
+  productId: string;
+  quantity: number;
+  product: { name: string; code: string | null };
+}
+
+export interface ClientRecurringOrder {
+  id: string;
+  dayOfWeek: number;
+  active: boolean;
+  lastGeneratedAt: string | null;
+  createdAt: string;
+  items: ClientRecurringOrderItem[];
+}
+
+/** Pedidos recurrentes ("todos los X pedime esto") que el cliente tiene configurados. */
+export async function getClientRecurringOrders(clientId: string): Promise<ClientRecurringOrder[]> {
+  return apiRequest<ClientRecurringOrder[]>(`/clients/${clientId}/recurring-orders`, { method: 'GET' });
+}
+
+/** Botón "Recordar": manda un push puntual al cliente para que arme su pedido recurrente. */
+export async function sendRecurringOrderReminder(
+  clientId: string,
+  recurringOrderId: string
+): Promise<{ sent: boolean; reason?: string }> {
+  return apiRequest(`/clients/${clientId}/recurring-orders/${recurringOrderId}/remind`, {
+    method: 'POST',
+  });
+}
+
 export const api = {
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
   post: <T>(endpoint: string, body: unknown) =>

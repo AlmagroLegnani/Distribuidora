@@ -35,4 +35,13 @@ router.put('/:id/prices', validate(setClientDiscountSchema), clientController.se
 // DELETE /api/clients/:id/prices/:productId  (volver al precio de lista)
 router.delete('/:id/prices/:productId', clientController.removeClientPrice);
 
+// GET /api/clients/:id/recurring-orders  (pedidos recurrentes que este cliente tiene configurados)
+router.get('/:id/recurring-orders', clientController.getClientRecurringOrders);
+
+// POST /api/clients/:id/recurring-orders/:recurringOrderId/remind  (recordatorio puntual por push)
+router.post(
+  '/:id/recurring-orders/:recurringOrderId/remind',
+  clientController.sendClientRecurringOrderReminder
+);
+
 export default router;
