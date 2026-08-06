@@ -5,7 +5,10 @@ import {
   api,
   getClientRecurringOrders,
   sendRecurringOrderReminder,
+  getClientPurchasePatterns,
+  sendProductReminder,
   type ClientRecurringOrder,
+  type ClientPurchasePattern,
 } from '@/lib/admin/api';
 import { formatDate, formatCurrency, STATUS_LABELS, STATUS_BADGE, OrderStatus } from '@/lib/admin/utils';
 
@@ -93,6 +96,11 @@ export default function ClientsPage() {
   const [remindingId, setRemindingId] = useState<string | null>(null);
   const [remindMsg, setRemindMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
+  const [purchasePatterns, setPurchasePatterns] = useState<ClientPurchasePattern[]>([]);
+  const [loadingPatterns, setLoadingPatterns] = useState(false);
+  const [patternRemindingId, setPatternRemindingId] = useState<string | null>(null);
+  const [patternRemindMsg, setPatternRemindMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
+
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [showAddDiscount, setShowAddDiscount] = useState(false);
   const [discountProductId, setDiscountProductId] = useState('');
@@ -128,6 +136,7 @@ export default function ClientsPage() {
     setLoadingDetail(true);
     setLoadingPrices(true);
     setLoadingRecurring(true);
+    setLoadingPatterns(true);
     setShowAddDiscount(false);
     setShowEditForm(false);
     try {
@@ -154,6 +163,14 @@ export default function ClientsPage() {
     } finally {
       setLoadingRecurring(false);
     }
+    try {
+      const patterns = await getClientPurchasePatterns(client.id);
+      setPurchasePatterns(patterns);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingPatterns(false);
+    }
   }
 
   async function handleRemind(recurringOrderId: string) {
@@ -177,6 +194,30 @@ export default function ClientsPage() {
       });
     } finally {
       setRemindingId(null);
+    }
+  }
+
+  async function handlePatternRemind(productId: string) {
+    if (!selected) return;
+    setPatternRemindingId(productId);
+    setPatternRemindMsg(null);
+    try {
+      const result = await sendProductReminder(selected.id, productId);
+      setPatternRemindMsg({
+        id: productId,
+        ok: result.sent,
+        text: result.sent
+          ? 'Recordatorio enviado al celular del cliente.'
+          : result.reason || 'No se pudo enviar el recordatorio.',
+      });
+    } catch (err) {
+      setPatternRemindMsg({
+        id: productId,
+        ok: false,
+        text: err instanceof Error ? err.message : 'Error al enviar el recordatorio',
+      });
+    } finally {
+      setPatternRemindingId(null);
     }
   }
 
@@ -805,6 +846,63 @@ export default function ClientsPage() {
                             }`}
                           >
                             {remindMsg.text}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="card overflow-hidden">
+                <div className="p-3 border-b">
+                  <div className="text-sm font-medium text-gray-700">
+                    Patrones de compra detectados {!loadingPatterns && `(${purchasePatterns.length})`}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Productos que pidió 2 veces o más, aunque no haya armado un pedido recurrente.
+                  </p>
+                </div>
+                {loadingPatterns ? (
+                  <div className="flex items-center justify-center h-16">
+                    <div className="animate-spin w-5 h-5 border-4 border-blue-600 border-t-transparent rounded-full" />
+                  </div>
+                ) : purchasePatterns.length === 0 ? (
+                  <p className="p-4 text-sm text-gray-400">
+                    Todavía no se detectó ningún patrón de compra repetido para este cliente.
+                  </p>
+                ) : (
+                  <div className="divide-y">
+                    {purchasePatterns.map((pp) => (
+                      <div key={pp.productId} className="p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">
+                              {pp.productName}
+                            </div>
+                            <div className="text-xs text-gray-400">{pp.productCode}</div>
+                          </div>
+                          <button
+                            onClick={() => handlePatternRemind(pp.productId)}
+                            disabled={patternRemindingId === pp.productId}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50 shrink-0"
+                          >
+                            {patternRemindingId === pp.productId ? 'Enviando...' : '🔔 Recordar'}
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Pedido {pp.orderCount} veces, en promedio cada {pp.cadenceDays} días — el último
+                          hace {pp.daysSinceLast} día{pp.daysSinceLast === 1 ? '' : 's'}.
+                        </div>
+                        {patternRemindMsg && patternRemindMsg.id === pp.productId && (
+                          <div
+                            className={`text-xs mt-1.5 px-2 py-1 rounded ${
+                              patternRemindMsg.ok
+                                ? 'bg-green-50 text-green-700'
+                                : 'bg-amber-50 text-amber-700'
+                            }`}
+                          >
+                            {patternRemindMsg.text}
                           </div>
                         )}
                       </div>

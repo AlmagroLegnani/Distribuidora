@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import * as clientService from '../services/clientService';
 import * as clientPriceService from '../services/clientPriceService';
 import * as recurringOrderService from '../services/recurringOrderService';
+import * as reorderSuggestionService from '../services/reorderSuggestionService';
 import { AuthRequest } from '../middleware/auth';
 import { parsePagination } from '../lib/pagination';
 
@@ -151,6 +152,38 @@ export async function sendClientRecurringOrderReminder(
       req.distributorId!,
       req.params.id,
       req.params.recurringOrderId
+    );
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Patrones de compra detectados solo del historial (sin que el cliente los haya configurado como recurrentes). */
+export async function getClientPurchasePatterns(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const patterns = await reorderSuggestionService.getClientPurchasePatterns(req.distributorId!, req.params.id);
+    res.json(patterns);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Botón "Recordar" de un patrón detectado: push puntual al cliente, a demanda. */
+export async function sendClientProductReminder(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await reorderSuggestionService.sendProductReminder(
+      req.distributorId!,
+      req.params.id,
+      req.params.productId
     );
     res.json(result);
   } catch (err) {

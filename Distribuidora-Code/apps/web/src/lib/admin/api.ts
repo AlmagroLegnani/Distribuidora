@@ -241,6 +241,29 @@ export async function sendRecurringOrderReminder(
   });
 }
 
+export interface ClientPurchasePattern {
+  productId: string;
+  productName: string;
+  productCode: string | null;
+  orderCount: number;
+  lastOrderAt: string;
+  daysSinceLast: number;
+  cadenceDays: number;
+}
+
+/** Productos que el cliente pidió 2+ veces, detectados solo del historial (sin que él lo haya configurado). */
+export async function getClientPurchasePatterns(clientId: string): Promise<ClientPurchasePattern[]> {
+  return apiRequest<ClientPurchasePattern[]>(`/clients/${clientId}/purchase-patterns`, { method: 'GET' });
+}
+
+/** Botón "Recordar" de un patrón detectado. */
+export async function sendProductReminder(
+  clientId: string,
+  productId: string
+): Promise<{ sent: boolean; reason?: string }> {
+  return apiRequest(`/clients/${clientId}/purchase-patterns/${productId}/remind`, { method: 'POST' });
+}
+
 export const api = {
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
   post: <T>(endpoint: string, body: unknown) =>

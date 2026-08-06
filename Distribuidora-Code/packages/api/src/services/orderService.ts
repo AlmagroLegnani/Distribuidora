@@ -4,8 +4,11 @@ import { AppError } from '../middleware/errorHandler';
 import { classifyDocument, normalizeDocumento } from '../lib/document';
 import { checkLowStock } from './stockAlertService';
 import { applyDiscount } from './clientPriceService';
+import { sendPushToSubscription, isPushConfigured } from '../lib/webPush';
 import type { PaginationParams } from '../lib/pagination';
 import type { CreatePublicOrderInput } from '../validations/schemas';
+
+const PLATFORM_URL = process.env.PLATFORM_URL || 'http://localhost:3000';
 
 interface OrderFilters {
   status?: OrderStatus;
@@ -123,6 +126,13 @@ export async function updateOrderStatus(
   // vuelve a reponer nada.
   const isNewlyCancelled = status === 'CANCELLED' && order.status !== 'CANCELLED';
 
+  // Para avisarle al cliente por push apenas cambia el estado (ver
+  // notifyOrderStatusChange más abajo) — solo en la transición hacia ese
+  // estado, no en cada guardado posterior (ej. si se edita la fecha estimada
+  // de un pedido que ya estaba "En proceso", no se vuelve a mandar el push).
+  const isNewlyProcessing = status === 'PROCESSING' && order.status !== 'PROCESSING';
+  const isNewlyCompleted = status === 'COMPLETED' && order.status !== 'COMPLETED';
+
   // Fecha/hora estimada de entrega: opcional, cargada por la distribuidora
   // al marcar el pedido como "En Proceso" (ver admin/orders/[id]/page.tsx).
   // Solo se escriben si vino algo — así un cambio de estado posterior
@@ -135,7 +145,7 @@ export async function updateOrderStatus(
     estimatedDeliveryData.estimatedDeliveryTime = estimatedDelivery.time;
   }
 
-  return prisma.$transaction(async (tx) => {
+  const updatedOrder = await prisma.$transaction(async (tx) => {
     if (isNewlyCancelled) {
       for (const item of order.items) {
         await tx.product.update({
@@ -149,11 +159,72 @@ export async function updateOrderStatus(
       where: { id: orderId },
       data: { status, ...estimatedDeliveryData },
       include: {
-        client: true,
+        client: { include: { pushSubscriptions: true } },
         items: { include: { product: { select: { name: true } } } },
       },
     });
   });
+
+  if (isNewlyProcessing || isNewlyCompleted) {
+    notifyOrderStatusChange(distributorId, updatedOrder, isNewlyProcessing ? 'PROCESSING' : 'COMPLETED').catch(
+      (err) => console.error(`[${new Date().toISOString()}] [order-status-push] Error inesperado:`, err)
+    );
+  }
+
+  return updatedOrder;
+}
+
+type OrderWithClientAndItems = Awaited<ReturnType<typeof updateOrderStatus>>;
+
+/**
+ * Push al celular del cliente apenas la distribuidora marca su pedido como
+ * "En proceso" (con la fecha/hora estimada, si la cargó) o "Completado" —
+ * hasta ahora el cliente solo se enteraba si entraba manualmente a "Mis
+ * Pedidos" a revisar. No corta el flujo si falla: se llama sin await desde
+ * updateOrderStatus, el cambio de estado ya quedó guardado de todas formas.
+ */
+async function notifyOrderStatusChange(
+  distributorId: string,
+  order: OrderWithClientAndItems,
+  newStatus: 'PROCESSING' | 'COMPLETED'
+): Promise<void> {
+  if (!isPushConfigured()) return;
+  if (order.client.pushSubscriptions.length === 0) return;
+
+  const distributor = await prisma.distributor.findUnique({
+    where: { id: distributorId },
+    select: { name: true, slug: true, active: true },
+  });
+  if (!distributor || !distributor.active) return;
+
+  let body: string;
+  if (newStatus === 'PROCESSING') {
+    const parts: string[] = [];
+    if (order.estimatedDeliveryDate) {
+      parts.push(
+        new Intl.DateTimeFormat('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(
+          order.estimatedDeliveryDate
+        )
+      );
+    }
+    if (order.estimatedDeliveryTime) parts.push(order.estimatedDeliveryTime);
+    const when = parts.length > 0 ? ` Llega el ${parts.join(' - ')}.` : '';
+    body = `Tu pedido #${order.id.slice(-8).toUpperCase()} está en camino.${when}`;
+  } else {
+    body = `Tu pedido #${order.id.slice(-8).toUpperCase()} fue completado. ¡Gracias por tu compra!`;
+  }
+
+  const payload = {
+    title: distributor.name,
+    body,
+    url: `${PLATFORM_URL}/${distributor.slug}/orders`,
+  };
+
+  await Promise.allSettled(
+    order.client.pushSubscriptions.map((sub) =>
+      sendPushToSubscription(sub.id, sub.endpoint, sub.p256dh, sub.auth, payload)
+    )
+  );
 }
 
 export async function createOrder(

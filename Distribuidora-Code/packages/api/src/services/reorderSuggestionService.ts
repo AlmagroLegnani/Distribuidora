@@ -184,3 +184,145 @@ export async function sendReorderReminder(
   await prisma.stockAlert.update({ where: { id: alertId }, data: { reminderSentAt: new Date() } });
   return { sent: true };
 }
+
+export interface ClientPurchasePattern {
+  productId: string;
+  productName: string;
+  productCode: string | null;
+  orderCount: number;
+  lastOrderAt: Date;
+  daysSinceLast: number;
+  cadenceDays: number;
+}
+
+/**
+ * Patrones de compra que el sistema detectó solo en base al historial —
+ * cualquier producto que este cliente haya pedido 2 veces o más, en fechas
+ * distintas, con la misma cadencia aprendida que usa detectReorderSuggestions
+ * (pero acá se muestran TODOS, no solo los que ya "les toca" hoy). Se usa en
+ * la ficha del cliente, junto a sus pedidos recurrentes configurados a mano,
+ * para que la distribuidora vea también los hábitos que el cliente nunca
+ * armó como recurrente pero que igual son un patrón real.
+ */
+export async function getClientPurchasePatterns(
+  distributorId: string,
+  clientId: string
+): Promise<ClientPurchasePattern[]> {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, distributorId },
+    select: {
+      orders: {
+        orderBy: { createdAt: 'asc' },
+        select: {
+          createdAt: true,
+          items: {
+            select: {
+              productId: true,
+              product: { select: { name: true, code: true, active: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!client) throw new AppError(404, 'Cliente no encontrado');
+
+  const datesByProduct = new Map<string, Date[]>();
+  const infoByProduct = new Map<string, { name: string; code: string | null; active: boolean }>();
+
+  for (const order of client.orders) {
+    for (const item of order.items) {
+      const dates = datesByProduct.get(item.productId) ?? [];
+      // Evita contar dos veces si el mismo producto aparece más de una vez
+      // en el mismo pedido (no debería pasar, pero por las dudas).
+      if (dates.length === 0 || dates[dates.length - 1].getTime() !== order.createdAt.getTime()) {
+        dates.push(order.createdAt);
+      }
+      datesByProduct.set(item.productId, dates);
+      if (!infoByProduct.has(item.productId)) {
+        infoByProduct.set(item.productId, {
+          name: item.product.name,
+          code: item.product.code,
+          active: item.product.active,
+        });
+      }
+    }
+  }
+
+  const now = new Date();
+  const patterns: ClientPurchasePattern[] = [];
+
+  for (const [productId, dates] of datesByProduct) {
+    const info = infoByProduct.get(productId)!;
+    if (!info.active) continue; // producto dado de baja, no tiene sentido mostrarlo
+    if (dates.length < 2) continue; // recién es "patrón" a partir del segundo pedido
+
+    const lastOrderAt = dates[dates.length - 1];
+    const daysSinceLast = daysBetween(lastOrderAt, now);
+    const intervals = dates.slice(1).map((d, i) => daysBetween(dates[i], d));
+    const avg = intervals.reduce((sum, d) => sum + d, 0) / intervals.length;
+    const cadenceDays = Math.max(Math.round(avg), MIN_CADENCE_DAYS);
+
+    patterns.push({
+      productId,
+      productName: info.name,
+      productCode: info.code,
+      orderCount: dates.length,
+      lastOrderAt,
+      daysSinceLast,
+      cadenceDays,
+    });
+  }
+
+  patterns.sort((a, b) => b.lastOrderAt.getTime() - a.lastOrderAt.getTime());
+  return patterns;
+}
+
+/**
+ * Botón "Recordar" de un patrón detectado (no requiere que exista una
+ * sugerencia/alerta generada por el job diario — es a demanda, la
+ * distribuidora lo puede mandar en cualquier momento).
+ */
+export async function sendProductReminder(
+  distributorId: string,
+  clientId: string,
+  productId: string
+): Promise<{ sent: boolean; reason?: string }> {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, distributorId },
+    select: { pushSubscriptions: { select: { id: true, endpoint: true, p256dh: true, auth: true } } },
+  });
+  if (!client) throw new AppError(404, 'Cliente no encontrado');
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, distributorId },
+    select: { name: true },
+  });
+  if (!product) throw new AppError(404, 'Producto no encontrado');
+
+  if (!isPushConfigured()) {
+    return { sent: false, reason: 'Las notificaciones push no están configuradas.' };
+  }
+  if (client.pushSubscriptions.length === 0) {
+    return { sent: false, reason: 'Este cliente todavía no activó las notificaciones en su celular.' };
+  }
+
+  const distributor = await prisma.distributor.findUnique({
+    where: { id: distributorId },
+    select: { name: true, slug: true },
+  });
+
+  const payload = {
+    title: distributor?.name || 'Tu distribuidora',
+    body: `¿Necesitás ${product.name}? Venís pidiéndolo seguido — no te olvides de tu pedido.`,
+    url: `${PLATFORM_URL}/${distributor?.slug || ''}`,
+  };
+
+  await Promise.allSettled(
+    client.pushSubscriptions.map((sub) =>
+      sendPushToSubscription(sub.id, sub.endpoint, sub.p256dh, sub.auth, payload)
+    )
+  );
+
+  return { sent: true };
+}

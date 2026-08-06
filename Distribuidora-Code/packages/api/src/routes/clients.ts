@@ -44,4 +44,13 @@ router.post(
   clientController.sendClientRecurringOrderReminder
 );
 
+// GET /api/clients/:id/purchase-patterns  (patrones de compra detectados del historial)
+router.get('/:id/purchase-patterns', clientController.getClientPurchasePatterns);
+
+// POST /api/clients/:id/purchase-patterns/:productId/remind  (recordatorio puntual por push)
+router.post(
+  '/:id/purchase-patterns/:productId/remind',
+  clientController.sendClientProductReminder
+);
+
 export default router;
