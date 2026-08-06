@@ -235,20 +235,133 @@ export default function ProductsPage() {
         />
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-40">
-            <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
+      {/* Loading / vacío */}
+      {loading ? (
+        <div className="card flex items-center justify-center h-40">
+          <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
+        </div>
+      ) : products.length === 0 ? (
+        <div className="card text-center py-12 text-gray-500">
+          <p>No hay productos.</p>
+          <button onClick={openCreate} className="btn-primary mt-4">
+            + Crear primer producto
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Tarjetas — mobile. La tabla de 9 columnas obligaba a scrollear
+              horizontal en el celular, así que acá va lo mismo apilado. */}
+          <div className="lg:hidden space-y-3">
+            {products.map((product) => {
+              const editing = product.id in inlineStock;
+              return (
+                <div key={product.id} className="card p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    {product.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-12 h-12 object-contain rounded-md border border-gray-200 bg-gray-50 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-md bg-gray-100 border border-gray-200 shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-gray-900">{product.name}</span>
+                        {product.promotionActive && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                            Promo
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {[product.brand, product.code, product.category].filter(Boolean).join(' · ') || '—'}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-semibold text-gray-900">{formatCurrency(product.price)}</div>
+                      <div className="text-[10px] text-gray-400">{IVA_LABELS[product.ivaType]}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-1">
+                      {editing ? (
+                        <>
+                          <input
+                            type="number"
+                            min={0}
+                            value={inlineStock[product.id]}
+                            onChange={(e) =>
+                              setInlineStock((prev) => ({
+                                ...prev,
+                                [product.id]: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleInlineStockSave(product.id);
+                              if (e.key === 'Escape')
+                                setInlineStock((prev) => {
+                                  const next = { ...prev };
+                                  delete next[product.id];
+                                  return next;
+                                });
+                            }}
+                            className="input w-20 text-center py-1"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleInlineStockSave(product.id)}
+                            disabled={updatingStock === product.id}
+                            className="text-green-600 hover:text-green-700 text-xs px-1"
+                          >
+                            ✓
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            setInlineStock((prev) => ({
+                              ...prev,
+                              [product.id]: String(product.stock),
+                            }))
+                          }
+                          className={`px-2 py-0.5 rounded text-xs font-semibold transition-colors ${
+                            product.stock === 0
+                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : product.stock < 10
+                              ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                          title="Tocar para editar stock"
+                        >
+                          Stock: {product.stock}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => openEdit(product)}
+                        className="text-blue-600 hover:text-blue-700 text-xs font-medium"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(product)}
+                        className="text-red-600 hover:text-red-700 text-xs font-medium"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ) : products.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <p>No hay productos.</p>
-            <button onClick={openCreate} className="btn-primary mt-4">
-              + Crear primer producto
-            </button>
-          </div>
-        ) : (
+
+          {/* Tabla — desktop */}
+          <div className="hidden lg:block card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
@@ -379,8 +492,9 @@ export default function ProductsPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Modal */}
       {showModal && (

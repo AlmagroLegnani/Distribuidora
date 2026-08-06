@@ -120,71 +120,107 @@ export default function OrdersPage() {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-48">
-            <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
-          </div>
-        ) : orders.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-lg">No se encontraron pedidos</p>
-            <p className="text-sm mt-1">Intenta cambiar los filtros</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Pedido</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">RUT/Cédula</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Razón Social</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Productos</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Estado</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {orders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-500">
+      {/* Loading / vacío */}
+      {loading ? (
+        <div className="card flex items-center justify-center h-48">
+          <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="card text-center py-12 text-gray-500">
+          <p className="text-lg">No se encontraron pedidos</p>
+          <p className="text-sm mt-1">Intenta cambiar los filtros</p>
+        </div>
+      ) : (
+        <>
+          {/* Tarjetas — mobile. La tabla de 8 columnas no entra en una pantalla
+              chica y obligaba a un scroll horizontal incómodo, así que acá
+              mostramos lo mismo apilado en tarjetas. */}
+          <div className="lg:hidden space-y-3">
+            {orders.map((order) => (
+              <Link
+                key={order.id}
+                href={`/admin/orders/${order.id}`}
+                className="card block p-4 space-y-2 active:bg-gray-50"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-mono text-xs font-semibold text-gray-500">
                       #{order.id.slice(-8).toUpperCase()}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {formatDate(order.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-gray-700">
-                      {order.client.rut || order.client.cedula}
-                    </td>
-                    <td className="px-4 py-3 text-gray-900">{order.client.name || '—'}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      {order.items.length} ítem(s)
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                      {formatCurrency(order.total)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_BADGE[order.status]}`}>
-                        {STATUS_LABELS[order.status]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/admin/orders/${order.id}`}
-                        className="text-blue-600 hover:text-blue-700 text-xs font-medium"
-                      >
-                        Ver →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">{formatDate(order.createdAt)}</div>
+                  </div>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${STATUS_BADGE[order.status]}`}>
+                    {STATUS_LABELS[order.status]}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-900 font-medium">{order.client.name || '—'}</div>
+                <div className="text-xs font-mono text-gray-500">
+                  {order.client.rut || order.client.cedula}
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                  <span className="text-xs text-gray-500">{order.items.length} ítem(s)</span>
+                  <span className="font-semibold text-gray-900">{formatCurrency(order.total)}</span>
+                </div>
+              </Link>
+            ))}
           </div>
-        )}
-      </div>
+
+          {/* Tabla — desktop */}
+          <div className="hidden lg:block card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Pedido</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">RUT/Cédula</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Razón Social</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Productos</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Estado</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {orders.map((order) => (
+                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-500">
+                        #{order.id.slice(-8).toUpperCase()}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                        {formatDate(order.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-gray-700">
+                        {order.client.rut || order.client.cedula}
+                      </td>
+                      <td className="px-4 py-3 text-gray-900">{order.client.name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">
+                        {order.items.length} ítem(s)
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                        {formatCurrency(order.total)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_BADGE[order.status]}`}>
+                          {STATUS_LABELS[order.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/admin/orders/${order.id}`}
+                          className="text-blue-600 hover:text-blue-700 text-xs font-medium"
+                        >
+                          Ver →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
