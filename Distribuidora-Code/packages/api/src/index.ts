@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler';
 import routes from './routes';
 import { cleanupOldSentEmails } from './services/emailCleanupService';
-import { sendDailyOrderReminders } from './services/reminderService';
+import { sendDailyOrderReminders, sendAfternoonOrderReminders } from './services/reminderService';
 import { detectReorderSuggestions } from './services/reorderSuggestionService';
 import { detectCoolingClients } from './services/clientCoolingService';
 import { generateDueRecurringOrders } from './services/recurringOrderService';
@@ -86,6 +86,25 @@ setInterval(() => {
 
   lastReminderRunDate = todayKey;
   sendDailyOrderReminders().catch((err) =>
+    console.error(`[${new Date().toISOString()}] [reminder] Error inesperado:`, err)
+  );
+}, REMINDER_CHECK_INTERVAL_MS);
+
+// Segunda pasada del recordatorio, por si el cliente ignoró (o nunca vio) el
+// de las 9am: corre a las 15:30 Uruguay = 18:30 UTC y solo le llega a quien
+// TODAVÍA no hizo ningún pedido hoy. Mismo patrón de flag-en-memoria.
+const AFTERNOON_REMINDER_HOUR_UTC = 18;
+const AFTERNOON_REMINDER_MINUTE_UTC = 30;
+let lastAfternoonReminderRunDate: string | null = null;
+setInterval(() => {
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10);
+  if (now.getUTCHours() !== AFTERNOON_REMINDER_HOUR_UTC) return;
+  if (now.getUTCMinutes() < AFTERNOON_REMINDER_MINUTE_UTC) return;
+  if (lastAfternoonReminderRunDate === todayKey) return;
+
+  lastAfternoonReminderRunDate = todayKey;
+  sendAfternoonOrderReminders().catch((err) =>
     console.error(`[${new Date().toISOString()}] [reminder] Error inesperado:`, err)
   );
 }, REMINDER_CHECK_INTERVAL_MS);

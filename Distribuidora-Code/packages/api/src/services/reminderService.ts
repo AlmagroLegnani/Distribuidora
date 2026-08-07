@@ -27,16 +27,19 @@ function getUruguayTodayRangeUtc(): { start: Date; end: Date } {
 }
 
 /**
- * Recordatorio diario: "no te olvides de hacer tu pedido". Se manda una vez
- * por día (ver scheduler en index.ts, corre ~9am hora Uruguay) a todo cliente
- * que (a) activó notificaciones en al menos un dispositivo y (b) todavía NO
- * hizo ningún pedido en el día de hoy — si ya pidió, no tiene sentido
- * molestarlo de nuevo.
+ * Lógica compartida de los recordatorios de "hacé tu pedido": busca todo
+ * cliente activo con notificaciones activadas que TODAVÍA no hizo ningún
+ * pedido hoy, y le manda el push con el texto indicado. La usan tanto el
+ * recordatorio de la mañana como el de la tarde (ver scheduler en index.ts)
+ * — si el cliente ya pidió entre uno y otro, el segundo lo salta solo.
  */
-export async function sendDailyOrderReminders(): Promise<{ sent: number; skipped: number }> {
+async function runDailyOrderReminder(
+  bodyText: string,
+  logLabel: string
+): Promise<{ sent: number; skipped: number }> {
   if (!isPushConfigured()) {
     console.warn(
-      `[${new Date().toISOString()}] [reminder] Push no configurado (faltan VAPID keys) — se salta el recordatorio diario.`
+      `[${new Date().toISOString()}] [reminder] Push no configurado (faltan VAPID keys) — se salta el recordatorio ${logLabel}.`
     );
     return { sent: 0, skipped: 0 };
   }
@@ -69,7 +72,7 @@ export async function sendDailyOrderReminders(): Promise<{ sent: number; skipped
 
     const payload = {
       title: `${client.distributor.name}`,
-      body: 'No olvides hacer tu pedido de hoy para que tu negocio no se quede sin stock.',
+      body: bodyText,
       url: `${PLATFORM_URL}/${client.distributor.slug}`,
     };
 
@@ -82,7 +85,30 @@ export async function sendDailyOrderReminders(): Promise<{ sent: number; skipped
   }
 
   console.log(
-    `[${new Date().toISOString()}] [reminder] Recordatorios diarios: ${sent} clientes avisados, ${skipped} ya habían pedido hoy.`
+    `[${new Date().toISOString()}] [reminder] Recordatorios ${logLabel}: ${sent} clientes avisados, ${skipped} ya habían pedido hoy.`
   );
   return { sent, skipped };
+}
+
+/**
+ * Recordatorio de la mañana: "no te olvides de hacer tu pedido". Corre
+ * ~9am hora Uruguay (ver scheduler en index.ts).
+ */
+export async function sendDailyOrderReminders(): Promise<{ sent: number; skipped: number }> {
+  return runDailyOrderReminder(
+    'No olvides hacer tu pedido de hoy para que tu negocio no se quede sin stock.',
+    'de la mañana'
+  );
+}
+
+/**
+ * Segunda pasada, por si el cliente ignoró (o no vio) el push de las 9am:
+ * corre ~15:30 hora Uruguay (ver scheduler en index.ts) y avisa solo a los
+ * que a esa hora TODAVÍA no hicieron ningún pedido en el día.
+ */
+export async function sendAfternoonOrderReminders(): Promise<{ sent: number; skipped: number }> {
+  return runDailyOrderReminder(
+    'Todavía no hiciste tu pedido de hoy. Hacelo antes de que termine el día para no quedarte sin stock.',
+    'de la tarde'
+  );
 }
