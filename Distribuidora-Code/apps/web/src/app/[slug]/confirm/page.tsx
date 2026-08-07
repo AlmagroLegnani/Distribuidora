@@ -75,48 +75,78 @@ function ConfirmPageInner() {
 
         {order ? (
           <>
-            <div className="border border-gray-100 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium text-gray-600">Producto</th>
-                    <th className="text-center px-3 py-2 font-medium text-gray-600">Cant.</th>
-                    <th className="text-center px-3 py-2 font-medium text-gray-600">IVA</th>
-                    <th className="text-right px-3 py-2 font-medium text-gray-600">Precio</th>
-                    <th className="text-right px-3 py-2 font-medium text-gray-600">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {order.items.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="px-3 py-2">
-                        <div className="font-medium">{item.product.name}</div>
-                        {item.product.code && (
-                          <div className="text-xs text-gray-400 font-mono">{item.product.code}</div>
-                        )}
+            {/* Tarjetas — mobile (pantalla). La tabla de 5 columnas no entra
+                en un celular y quedaba cortada (el Precio/Subtotal/Total se
+                iban afuera); acá va lo mismo apilado. Oculta al imprimir,
+                donde siempre se usa la tabla de abajo. */}
+            <div className="sm:hidden print:hidden space-y-2">
+              {order.items.map((item, idx) => (
+                <div key={idx} className="border border-gray-100 rounded-xl p-3">
+                  <div className="font-medium">{item.product.name}</div>
+                  {item.product.code && (
+                    <div className="text-xs text-gray-400 font-mono">{item.product.code}</div>
+                  )}
+                  <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                    <span>
+                      {item.quantity} × {formatCurrency(item.unitPrice)} · {IVA_LABELS[item.ivaType]}
+                    </span>
+                    <span className="font-semibold text-gray-900 text-sm">
+                      {formatCurrency(item.subtotal)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-2 border-t-2 border-gray-200">
+                <span className="font-bold text-gray-900">TOTAL</span>
+                <span className="font-bold text-blue-700 text-lg">{formatCurrency(order.total)}</span>
+              </div>
+            </div>
+
+            {/* Tabla — sm+ y siempre al imprimir */}
+            <div className="hidden sm:block print:block border border-gray-100 rounded-xl overflow-hidden print:overflow-visible">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium text-gray-600">Producto</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-600">Cant.</th>
+                      <th className="text-center px-3 py-2 font-medium text-gray-600">IVA</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600">Precio</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {order.items.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium">{item.product.name}</div>
+                          {item.product.code && (
+                            <div className="text-xs text-gray-400 font-mono">{item.product.code}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">{item.quantity}</td>
+                        <td className="px-3 py-2 text-center text-xs text-gray-500">
+                          {IVA_LABELS[item.ivaType]}
+                        </td>
+                        <td className="px-3 py-2 text-right">{formatCurrency(item.unitPrice)}</td>
+                        <td className="px-3 py-2 text-right font-semibold">
+                          {formatCurrency(item.subtotal)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-gray-200">
+                    <tr>
+                      <td colSpan={4} className="px-3 py-3 text-right font-bold text-gray-900">
+                        TOTAL
                       </td>
-                      <td className="px-3 py-2 text-center">{item.quantity}</td>
-                      <td className="px-3 py-2 text-center text-xs text-gray-500">
-                        {IVA_LABELS[item.ivaType]}
-                      </td>
-                      <td className="px-3 py-2 text-right">{formatCurrency(item.unitPrice)}</td>
-                      <td className="px-3 py-2 text-right font-semibold">
-                        {formatCurrency(item.subtotal)}
+                      <td className="px-3 py-3 text-right font-bold text-blue-700">
+                        {formatCurrency(order.total)}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t-2 border-gray-200">
-                  <tr>
-                    <td colSpan={4} className="px-3 py-3 text-right font-bold text-gray-900">
-                      TOTAL
-                    </td>
-                    <td className="px-3 py-3 text-right font-bold text-blue-700">
-                      {formatCurrency(order.total)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </tfoot>
+                </table>
+              </div>
             </div>
 
             {ivaTypesUsed.length > 0 && (
